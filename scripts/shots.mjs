@@ -46,7 +46,7 @@ for (const name of ['Gear train', 'Globe rosette', 'Harmonograph on a torus']) {
     name: `mechanism-${name}`,
     preset: p,
     wait: 4000,
-    view: view('neon', { traceSeconds: 10, layers: { curve: true, trace: true, mechanism: true } }),
+    view: view('neon', { traceSpeed: 8, layers: { curve: true, trace: true, mechanism: true } }),
   });
 }
 

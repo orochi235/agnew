@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 // Drives the lab like a person would and fails on anything broken: the canvas
 // draws, presets and styles switch, layers toggle, blocks add and remove,
-// the URL keeps the state, and both exports download. Needs the dev server.
+// the URL keeps the state, and both exports download. Needs the dev server
+// and a built library (`npm run smoke` builds it).
 //
 //   node scripts/smoke.mjs [--url http://localhost:5190]
 
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright-core';
+import { encode, PRESETS, portableDesign } from '../packages/agnew/dist/index.js';
+import { DEFAULT_VIEW } from '../packages/agnew/dist/three/index.js';
 
 const { values } = parseArgs({ options: { url: { type: 'string', default: 'http://localhost:5190' } } });
 
@@ -117,6 +120,29 @@ step('restores state from the URL', async () => {
   await page.waitForTimeout(1000);
   if ((await blockCards().count()) !== 4) fail('reload lost the stack');
   if (!(await page.locator('.ag-badge').isVisible())) fail('reload lost the custom state');
+});
+
+step('traces at a steady speed, so a longer curve takes longer', async () => {
+  // Share of each curve drawn after the same time, measured as ink relative
+  // to the whole curve; the harmonograph is about 4.6× longer than the knot.
+  const drawn = {};
+  for (const name of ['Torus knot', 'Harmonograph']) {
+    const design = portableDesign(PRESETS.find((x) => x.name === name).design());
+    const ink = [];
+    for (const [layers, wait] of [
+      [{ curve: true, trace: false, mechanism: false }, 1200],
+      [{ curve: false, trace: true, mechanism: false }, 3000],
+    ]) {
+      const view = { ...DEFAULT_VIEW, autoRotate: false, bloom: 0, traceSpeed: 4, layers };
+      await page.goto('about:blank');
+      await page.goto(`${values.url}/#s=${encode({ preset: name, design, view })}`);
+      await page.waitForTimeout(wait);
+      ink.push(await inked());
+    }
+    drawn[name] = ink[1] / ink[0];
+  }
+  const ratio = drawn.Harmonograph / drawn['Torus knot'];
+  if (!(ratio < 0.5)) fail(`harmonograph drew ${(ratio * 100).toFixed(0)}% as much as the knot; expected well under half`);
 });
 
 step('saves a preset in the browser, keeps it across reloads, and deletes it', async () => {

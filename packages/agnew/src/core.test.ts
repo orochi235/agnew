@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { arcLengths, indexAtLength } from './arclength.js';
 import { decode, encode, portableDesign, sanitizeDesign } from './codec.js';
 import { createBlock, type Design, evaluate, evaluateAt } from './design.js';
 import { parallelTransport } from './frames.js';
@@ -151,5 +152,30 @@ describe('parallelTransport', () => {
       expect(dot(t, b)).toBeCloseTo(0, 4);
       if (i > 0) expect(dot(n, v(f.normals, i - 1))).toBeGreaterThan(0.9);
     }
+  });
+});
+
+describe('arc length', () => {
+  const c = evaluate(design([createBlock('arm', { radius: 1, freq: 1 })], 1, 1001));
+  const cum = arcLengths(c.positions, c.count);
+
+  it('accumulates to the curve length', () => {
+    expect(cum[0]).toBe(0);
+    expect(cum[c.count - 1]).toBeCloseTo(c.length, 5);
+  });
+
+  it('finds the point a given distance along', () => {
+    expect(indexAtLength(cum, Math.PI)).toBeCloseTo(500, 1);
+    expect(indexAtLength(cum, -1)).toBe(0);
+    expect(indexAtLength(cum, 99)).toBe(1000);
+  });
+
+  it('moves evenly along a curve sampled unevenly', () => {
+    // A pendulum is fast mid-swing and slow at the ends; equal distances
+    // should not map to equal index steps.
+    const p = evaluate(design([createBlock('pendulum', { freq: 1, amplitude: 1 })], 0.25, 1001));
+    const pc = arcLengths(p.positions, p.count);
+    const half = indexAtLength(pc, pc[p.count - 1] / 2);
+    expect(half).toBeLessThan(400);
   });
 });

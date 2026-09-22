@@ -42,6 +42,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { arcLengths, indexAtLength } from '../arclength.js';
 import { type Curve, type Design, evaluate, evaluateAt, timeSpan } from '../design.js';
 import { buildRibbon, buildTube, decimate, type SweptGeometry } from './geometry.js';
 import { gradientColors, paletteStops } from './palette.js';
@@ -68,8 +69,10 @@ export interface ViewSettings {
   /** Bloom strength; 0 turns the pass off. */
   bloom: number;
   layers: { curve: boolean; trace: boolean; mechanism: boolean };
-  /** Seconds the pen takes to draw the whole curve. */
-  traceSeconds: number;
+  /** How far the pen travels per second, in multiples of the curve's radius.
+   *  The pen moves at this speed along the line, so a longer, more complex
+   *  curve takes longer to draw. */
+  traceSpeed: number;
   autoRotate: boolean;
 }
 
@@ -92,7 +95,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   ribbonTwist: 40,
   bloom: 0.9,
   layers: { curve: true, trace: false, mechanism: false },
-  traceSeconds: 12,
+  traceSpeed: 4,
   autoRotate: true,
 };
 
@@ -213,8 +216,10 @@ export function createAgnewView(
   let curve: Curve | null = null;
   let built: Built | null = null;
   let dirty = true;
-  let traceU = 0;
+  /** Arc length the pen has drawn so far. */
+  let traceS = 0;
   let holdLeft = 0;
+  let cum: Float64Array = new Float64Array(1);
 
   interface Built {
     objects: Object3D[];
@@ -239,6 +244,8 @@ export function createAgnewView(
     disposeBuilt();
     if (!design) return;
     curve = evaluate(design);
+    cum = arcLengths(curve.positions, curve.count);
+    traceS = Math.min(traceS, curve.length);
     const s = settings;
     const bothOn = s.layers.curve && s.layers.trace;
     const dimOpacity = 0.14;
@@ -431,17 +438,19 @@ export function createAgnewView(
     if (s.layers.trace || s.layers.mechanism) {
       if (holdLeft > 0) {
         holdLeft -= dt;
-        if (holdLeft <= 0) traceU = 0;
+        if (holdLeft <= 0) traceS = 0;
       } else {
-        traceU += dt / Math.max(0.1, s.traceSeconds);
-        if (traceU >= 1) {
-          traceU = 1;
+        const total = cum[cum.length - 1];
+        traceS += s.traceSpeed * Math.max(curve?.radius ?? 1, 1e-3) * dt;
+        if (traceS >= total) {
+          traceS = total;
           holdLeft = TRACE_HOLD_SECONDS;
         }
       }
     }
-    built?.reveal(traceU);
-    if (design) updateMechanism(traceU * timeSpan(design));
+    const u = cum.length > 1 ? indexAtLength(cum, traceS) / (cum.length - 1) : 0;
+    built?.reveal(u);
+    if (design) updateMechanism(u * timeSpan(design));
     if (scene.fog instanceof Fog && curve) {
       const d = camera.position.length();
       scene.fog.near = Math.max(0.01, d - curve.radius * 0.6);
@@ -554,7 +563,7 @@ export function createAgnewView(
         settings.ribbonTwist !== prev.ribbonTwist ||
         settings.layers.curve !== prev.layers.curve ||
         settings.layers.trace !== prev.layers.trace;
-      if (settings.layers.trace && !prev.layers.trace) traceU = 0;
+      if (settings.layers.trace && !prev.layers.trace) traceS = 0;
       if (needsRebuild) dirty = true;
       else applySettings();
     },
@@ -563,7 +572,7 @@ export function createAgnewView(
     },
     fit,
     restartTrace() {
-      traceU = 0;
+      traceS = 0;
       holdLeft = 0;
     },
     async exportPNG(scale = 2) {
@@ -581,7 +590,7 @@ export function createAgnewView(
       const chunks: Blob[] = [];
       rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       if (options.restartTrace) {
-        traceU = 0;
+        traceS = 0;
         holdLeft = 0;
       }
       return new Promise((resolve) => {

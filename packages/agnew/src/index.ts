@@ -11,6 +11,7 @@ export {
   wrapSphere,
   wrapTorus,
 } from './blocks.js';
+export { arcLengths, indexAtLength } from './arclength.js';
 export { decode, encode, portableDesign, sanitizeDesign } from './codec.js';
 export {
   type Block,

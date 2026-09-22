@@ -35,7 +35,13 @@ const viewSchema = resolveConfigSchema(
       trace: f.boolean(false).label('Trace').manual(),
       mechanism: f.boolean(false).label('Mechanism').manual(),
     }),
-    traceSeconds: f.number(12).range(1, 120).step(1).label('Trace duration').suffix('s').manual(),
+    traceSpeed: f
+      .number(4)
+      .range(0.25, 30)
+      .step(0.25)
+      .label('Trace speed')
+      .describe("How far the pen travels per second, in multiples of the curve's radius.")
+      .manual(),
   }),
 );
 

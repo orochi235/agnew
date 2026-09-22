@@ -74,8 +74,9 @@ const view = createAgnewView(canvas, { design, settings: { style: 'tube' } });
 
 `createAgnewView(canvas)` owns the renderer, camera and orbit controls. Three
 layers switch on independently: **curve** (the whole thing), **trace** (a pen
-redrawing it from the start; with the curve also on, the curve dims to a
-ghost), and **mechanism** (the arms at the pen's current time, and the
+redrawing it from the start at a steady speed along the line, set in curve
+radii per second, so a longer curve takes longer; with the curve also on, the
+curve dims to a ghost), and **mechanism** (the arms at the pen's current time, and the
 wireframe of any surface it is wrapped onto). `exportPNG(scale)` renders at a
 multiple of screen resolution; `record(seconds)` returns a WebM.
 
