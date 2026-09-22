@@ -30,12 +30,11 @@ export const PRESETS: readonly Preset[] = [
     name: 'Harmonograph',
     family: 'harmonograph',
     design: () =>
-      design(24, 40000, [
-        ['pendulum', { axis: 'x', amplitude: 0.55, freq: 2.01, phase: 0, damping: 0.03 }],
-        ['pendulum', { axis: 'x', amplitude: 0.35, freq: 3, phase: 70, damping: 0.02 }],
-        ['pendulum', { axis: 'y', amplitude: 0.55, freq: 3.02, phase: 30, damping: 0.03 }],
-        ['pendulum', { axis: 'y', amplitude: 0.35, freq: 2, phase: 0, damping: 0.02 }],
-        ['pendulum', { axis: 'z', amplitude: 0.7, freq: 2.99, phase: 115, damping: 0.025 }],
+      design(20, 50000, [
+        ['pendulum', { axis: 'x', amplitude: 0.75, freq: 2, phase: 0, damping: 0.02 }],
+        ['pendulum', { axis: 'y', amplitude: 0.75, freq: 3.02, phase: 90, damping: 0.02 }],
+        ['pendulum', { axis: 'z', amplitude: 0.5, freq: 4.03, phase: 30, damping: 0.02 }],
+        ['pendulum', { axis: 'x', amplitude: 0.15, freq: 6.01, phase: 70, damping: 0.03 }],
       ]),
   },
   {
@@ -82,10 +81,10 @@ export const PRESETS: readonly Preset[] = [
     name: 'Globe rosette',
     family: 'sphere',
     design: () =>
-      design(4, 12000, [
-        ['arm', { radius: 0.5, freq: 1 }],
-        ['arm', { radius: 0.35, freq: -1.25 }],
-        ['wrapSphere', { radius: 0.9, wrap: 1.9 }],
+      design(5, 16000, [
+        ['arm', { radius: 0.55, freq: 1 }],
+        ['arm', { radius: 0.3, freq: -3.2 }],
+        ['wrapSphere', { radius: 0.9, wrap: 1.6 }],
       ]),
   },
   {
@@ -94,7 +93,7 @@ export const PRESETS: readonly Preset[] = [
     design: () =>
       design(16, 40000, [
         ['torusKnot', { p: 1, q: 9, R: 0.8, r: 0.35 }],
-        ['decay', { rate: 0.12 }],
+        ['decay', { rate: 0.06 }],
         ['precess', { axis: 'z', rate: 22.5 }],
       ]),
   },
@@ -102,10 +101,10 @@ export const PRESETS: readonly Preset[] = [
     name: 'Orbiting spirograph',
     family: 'combo',
     design: () =>
-      design(8, 30000, [
+      design(12, 36000, [
         ['arm', { radius: 0.3, freq: 1 }],
-        ['arm', { radius: 0.18, freq: -3.5 }],
-        ['wrapTorus', { R: 0.7, r: 0.25, uScale: 0, vScale: 6, uDrift: 1, vDrift: 0 }],
+        ['arm', { radius: 0.16, freq: -6.02 }],
+        ['wrapTorus', { R: 0.72, r: 0.26, uScale: 1, vScale: 5, uDrift: 1 / 12, vDrift: 0 }],
       ]),
   },
 ];

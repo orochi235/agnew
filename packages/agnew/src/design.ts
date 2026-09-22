@@ -66,6 +66,8 @@ export interface Curve {
   count: number;
   /** Largest distance of any point from the origin. */
   radius: number;
+  /** Total arc length of the polyline. */
+  length: number;
 }
 
 export function evaluate(design: Design): Curve {
@@ -74,6 +76,7 @@ export function evaluate(design: Design): Curve {
   const positions = new Float32Array(count * 3);
   const span = timeSpan(design);
   let radius = 0;
+  let length = 0;
   for (let i = 0; i < count; i++) {
     const t = (i / (count - 1)) * span;
     let p: Vec3 = [0, 0, 0];
@@ -82,8 +85,11 @@ export function evaluate(design: Design): Curve {
     positions[i * 3 + 1] = p[1];
     positions[i * 3 + 2] = p[2];
     radius = Math.max(radius, Math.hypot(p[0], p[1], p[2]));
+    if (i > 0) {
+      length += Math.hypot(p[0] - positions[i * 3 - 3], p[1] - positions[i * 3 - 2], p[2] - positions[i * 3 - 1]);
+    }
   }
-  return { positions, count, radius };
+  return { positions, count, radius, length };
 }
 
 export interface Mechanism {

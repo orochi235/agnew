@@ -46,6 +46,11 @@ describe('evaluate', () => {
     expect(peak(18000, 20000)).toBeLessThan(peak(0, 2000) * 0.2);
   });
 
+  it('measures arc length', () => {
+    const c = evaluate(design([createBlock('arm', { radius: 1, freq: 1 })], 1, 4000));
+    expect(c.length).toBeCloseTo(Math.PI * 2, 3);
+  });
+
   it('skips disabled blocks', () => {
     const off = createBlock('arm', { radius: 2 });
     off.enabled = false;

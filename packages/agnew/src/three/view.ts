@@ -52,7 +52,8 @@ export interface ViewSettings {
   background: string;
   /** Line width in CSS pixels (neon, ink). */
   lineWidth: number;
-  /** Line opacity; additive in neon, so low values let crossings build up. */
+  /** Line opacity. In neon it is additive and scaled down for dense curves
+   *  (long relative to their size), so a harmonograph's core does not burn out. */
   lineOpacity: number;
   /** Tube radius as a fraction of the curve's radius. */
   tubeRadius: number;
@@ -72,7 +73,7 @@ export interface ViewSettings {
 export const STYLE_DEFAULTS: Readonly<Record<Style, Partial<ViewSettings>>> = {
   neon: { palette: 'aurora', background: '#05060a', bloom: 0.9, lineWidth: 1.6, lineOpacity: 0.55 },
   tube: { palette: 'brass', background: '#0e1016', bloom: 0.15 },
-  ink: { palette: 'ink', background: '#f3eee3', bloom: 0, lineWidth: 1.1, lineOpacity: 0.9 },
+  ink: { palette: 'ink', background: '#f3eee3', bloom: 0, lineWidth: 1.3, lineOpacity: 0.95 },
   ribbon: { palette: 'ice', background: '#0c0a14', bloom: 0.2 },
 };
 
@@ -225,8 +226,9 @@ export function createAgnewView(
         });
       const fullGeom = makeGeom();
       const traceGeom = makeGeom();
-      const fullMat = makeMat(bothOn ? s.lineOpacity * dimOpacity * 2 : s.lineOpacity);
-      const traceMat = makeMat(s.lineOpacity);
+      const opacity = s.style === 'neon' ? s.lineOpacity * neonExposure(curve) : s.lineOpacity;
+      const fullMat = makeMat(bothOn ? opacity * dimOpacity * 2 : opacity);
+      const traceMat = makeMat(opacity);
       const full = new Line2(fullGeom, fullMat);
       const trace = new Line2(traceGeom, traceMat);
       curveGroup.add(full);
@@ -405,7 +407,7 @@ export function createAgnewView(
     if (scene.fog instanceof Fog && curve) {
       const d = camera.position.length();
       scene.fog.near = Math.max(0.01, d - curve.radius * 0.6);
-      scene.fog.far = d + curve.radius * 1.6;
+      scene.fog.far = d + curve.radius * 4;
     }
     controls.update(dt);
     composer.render(dt);
@@ -502,6 +504,13 @@ export function createAgnewView(
       renderer.dispose();
     },
   };
+}
+
+/** Additive lines brighten with every overlap. Curves up to ~90 radii long
+ *  look right at the set opacity; longer ones are dimmed toward it. */
+function neonExposure(curve: Curve): number {
+  const density = curve.length / Math.max(curve.radius, 1e-6);
+  return Math.min(1, (90 / density) ** 0.7);
 }
 
 function glowTexture(): Texture {
