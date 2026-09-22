@@ -61,6 +61,9 @@ function fileStem(name: string) {
   return `agnew-${(name || 'custom').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 }
 
+/** `?bare` is the canvas alone, for embedding the lab as a picture. */
+const BARE = new URLSearchParams(location.search).has('bare');
+
 export function App() {
   const [state, setState] = useState<LabState>(initialState);
   const [recording, setRecording] = useState(false);
@@ -192,19 +195,27 @@ export function App() {
   );
   const presetValue = presetOptions.some((o) => o.value === state.preset) ? state.preset : CUSTOM;
 
+  const viewport = (
+    <div className="ag-viewport">
+      <canvas ref={canvasRef} className="ag-canvas" />
+      {!BARE && !state.preset && <div className="ag-badge">custom</div>}
+      {!BARE && (
+        <Transport
+          view={viewRef}
+          playing={playing}
+          onPlayingChange={setPlaying}
+          scrubbable={state.view.layers.trace || state.view.layers.mechanism}
+        />
+      )}
+    </div>
+  );
+
+  if (BARE) return <div className="ag-bare">{viewport}</div>;
+
   return (
-    <LabShell title="agnew" mode="dark">
+    <LabShell title="agnewgraph (rip ted)" mode="dark">
       <div className="ag-layout">
-        <div className="ag-viewport">
-          <canvas ref={canvasRef} className="ag-canvas" />
-          {!state.preset && <div className="ag-badge">custom</div>}
-          <Transport
-            view={viewRef}
-            playing={playing}
-            onPlayingChange={setPlaying}
-            scrubbable={state.view.layers.trace || state.view.layers.mechanism}
-          />
-        </div>
+        {viewport}
         <aside className="ag-sidebar">
           <section className="ag-section">
             <ControlPanel

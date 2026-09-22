@@ -16,6 +16,10 @@ body {
   min-height: 420px;
 }
 
+.ag-bare {
+  height: 100vh;
+}
+
 .ag-viewport {
   position: relative;
   min-width: 0;
