@@ -4,6 +4,7 @@ import { type AgnewView, createAgnewView, PALETTES, STYLE_DEFAULTS, STYLES, type
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { parsePresetFile, presetFile, SAVED_PREFIX, useSavedPresets } from './saved';
 import { StackEditor } from './StackEditor';
+import { Transport } from './Transport';
 import { initialState, type LabState, writeHash } from './state';
 
 /** The dropdown's value while the state matches no preset. */
@@ -67,12 +68,19 @@ export function App() {
   const saved = useSavedPresets();
   const [name, setName] = useState(() => (state.preset.startsWith(SAVED_PREFIX) ? presetLabel(state.preset) : ''));
   const [note, setNote] = useState('');
+  const [playing, setPlaying] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewRef = useRef<AgnewView | null>(null);
 
   useEffect(() => {
-    const view = createAgnewView(canvasRef.current!, { design: state.design, settings: state.view });
+    const view = createAgnewView(canvasRef.current!, {
+      design: state.design,
+      settings: state.view,
+      // A chosen angle should stay put.
+      onUserOrbit: () =>
+        setState((s) => (s.view.autoRotate ? { ...s, view: { ...s.view, autoRotate: false } } : s)),
+    });
     viewRef.current = view;
     requestAnimationFrame(() => view.fit());
     // The view is created once; later changes flow through the effects below.
@@ -81,6 +89,20 @@ export function App() {
 
   useEffect(() => viewRef.current?.setDesign(state.design), [state.design]);
   useEffect(() => viewRef.current?.setSettings(state.view), [state.view]);
+  useEffect(() => {
+    if (viewRef.current) viewRef.current.playing = playing;
+  }, [playing]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat) return;
+      const t = e.target as HTMLElement;
+      if (t.closest('input, textarea, select, button, [contenteditable]')) return;
+      e.preventDefault();
+      setPlaying((p) => !p);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   useEffect(() => {
     const id = setTimeout(() => writeHash(state), 250);
     return () => clearTimeout(id);
@@ -146,6 +168,7 @@ export function App() {
   const record = async () => {
     const view = viewRef.current;
     if (!view || recording) return;
+    setPlaying(true);
     setRecording(true);
     try {
       download(await view.record(recordSeconds, { restartTrace: true }), `${fileStem(presetLabel(state.preset))}.webm`);
@@ -175,6 +198,12 @@ export function App() {
         <div className="ag-viewport">
           <canvas ref={canvasRef} className="ag-canvas" />
           {!state.preset && <div className="ag-badge">custom</div>}
+          <Transport
+            view={viewRef}
+            playing={playing}
+            onPlayingChange={setPlaying}
+            scrubbable={state.view.layers.trace || state.view.layers.mechanism}
+          />
         </div>
         <aside className="ag-sidebar">
           <section className="ag-section">
@@ -231,7 +260,13 @@ export function App() {
               <button type="button" onClick={() => viewRef.current?.fit()}>
                 Fit view
               </button>
-              <button type="button" onClick={() => viewRef.current?.restartTrace()}>
+              <button
+                type="button"
+                onClick={() => {
+                  viewRef.current?.restartTrace();
+                  setPlaying(true);
+                }}
+              >
                 Replay
               </button>
               <button type="button" onClick={() => navigator.clipboard?.writeText(location.href)}>

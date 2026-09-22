@@ -114,6 +114,11 @@ export interface AgnewView {
   /** Move the camera so the whole curve is in view, keeping its direction. */
   fit(): void;
   restartTrace(): void;
+  /** Whether the pen, the mechanism and auto-rotation are running. */
+  playing: boolean;
+  /** How far along the curve the pen is, 0–1 by distance. Setting it moves
+   *  the pen there. */
+  progress: number;
   /** A PNG of the current frame at `scale` times the on-screen resolution,
    *  rendered in tiles so large sizes work on any GPU. */
   exportPNG(scale?: number): Promise<Blob>;
@@ -158,7 +163,12 @@ const TRACE_HOLD_SECONDS = 1.5;
 
 export function createAgnewView(
   canvas: HTMLCanvasElement,
-  init: { design?: Design; settings?: Partial<ViewSettings> } = {},
+  init: {
+    design?: Design;
+    settings?: Partial<ViewSettings>;
+    /** Called when the user starts dragging the camera. */
+    onUserOrbit?: () => void;
+  } = {},
 ): AgnewView {
   let settings: ViewSettings = { ...DEFAULT_VIEW, ...init.settings, layers: { ...DEFAULT_VIEW.layers, ...init.settings?.layers } };
   let design: Design | null = init.design ?? null;
@@ -173,6 +183,14 @@ export function createAgnewView(
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.autoRotateSpeed = 0.6;
+  let playing = true;
+  /** Paused and not yet touched: the camera holds still instead of coasting
+   *  on damping, so pausing lands on the angle it was at. */
+  let cameraHeld = false;
+  controls.addEventListener('start', () => {
+    cameraHeld = false;
+    init.onUserOrbit?.();
+  });
 
   const pmrem = new PMREMGenerator(renderer);
   const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -366,7 +384,7 @@ export function createAgnewView(
     curveGroup.visible = s.layers.curve;
     traceGroup.visible = s.layers.trace;
     mechGroup.visible = s.layers.mechanism;
-    controls.autoRotate = s.autoRotate;
+    controls.autoRotate = s.autoRotate && playing;
     resize();
   }
 
@@ -435,7 +453,7 @@ export function createAgnewView(
   function renderFrame(dt: number) {
     if (dirty) rebuild();
     const s = settings;
-    if (s.layers.trace || s.layers.mechanism) {
+    if (playing && (s.layers.trace || s.layers.mechanism)) {
       if (holdLeft > 0) {
         holdLeft -= dt;
         if (holdLeft <= 0) traceS = 0;
@@ -456,7 +474,7 @@ export function createAgnewView(
       scene.fog.near = Math.max(0.01, d - curve.radius * 0.6);
       scene.fog.far = d + curve.radius * 4;
     }
-    controls.update(dt);
+    if (!cameraHeld) controls.update(dt);
     composer.render(dt);
   }
 
@@ -571,6 +589,22 @@ export function createAgnewView(
       return settings;
     },
     fit,
+    get playing() {
+      return playing;
+    },
+    set playing(on: boolean) {
+      playing = on;
+      cameraHeld = !on;
+      controls.autoRotate = settings.autoRotate && playing;
+    },
+    get progress() {
+      const total = cum[cum.length - 1];
+      return total > 0 ? traceS / total : 0;
+    },
+    set progress(u: number) {
+      traceS = Math.min(1, Math.max(0, u)) * cum[cum.length - 1];
+      holdLeft = 0;
+    },
     restartTrace() {
       traceS = 0;
       holdLeft = 0;

@@ -80,6 +80,11 @@ curve dims to a ghost), and **mechanism** (the arms at the pen's current time, a
 wireframe of any surface it is wrapped onto). `exportPNG(scale)` renders at a
 multiple of screen resolution; `record(seconds)` returns a WebM.
 
+`view.playing = false` freezes the pen, the mechanism and auto-rotation on the
+current frame, and `view.progress` (0–1 by distance) reads or moves the pen.
+The lab puts both in a bar over the canvas (Space toggles play), and grabbing
+the view turns auto-rotate off so a chosen angle stays put.
+
 The lab saves presets (design plus look) by name in the browser, where they
 join the preset dropdown, or as `.agnew.json` files to keep or share.
 

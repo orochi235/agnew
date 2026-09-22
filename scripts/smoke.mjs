@@ -145,6 +145,40 @@ step('traces at a steady speed, so a longer curve takes longer', async () => {
   if (!(ratio < 0.5)) fail(`harmonograph drew ${(ratio * 100).toFixed(0)}% as much as the knot; expected well under half`);
 });
 
+step('pauses, scrubs, and stops auto-rotating once the view is grabbed', async () => {
+  const design = portableDesign(PRESETS.find((x) => x.name === 'Gear train').design());
+  const view = { ...DEFAULT_VIEW, autoRotate: true, layers: { curve: true, trace: true, mechanism: true } };
+  await page.goto('about:blank');
+  await page.goto(`${values.url}/#s=${encode({ preset: 'Gear train', design, view })}`);
+  await page.waitForTimeout(1500);
+  const canvas = page.locator('.ag-canvas');
+
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.waitForTimeout(300);
+  const a = await canvas.screenshot();
+  await page.waitForTimeout(800);
+  const b = await canvas.screenshot();
+  if ((await pngDiff(a, b)) > 0.05) fail('picture kept changing while paused');
+
+  await page.getByRole('slider', { name: 'Pen position' }).fill('0.6');
+  await page.waitForTimeout(300);
+  const c = await canvas.screenshot();
+  if ((await pngDiff(b, c)) < 0.05) fail('scrubbing did not move the pen');
+  const held = Number(await page.getByRole('slider', { name: 'Pen position' }).inputValue());
+  if (Math.abs(held - 0.6) > 0.01) fail(`scrubber drifted to ${held} while paused`);
+
+  await canvas.click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Space');
+  if (!(await page.getByRole('button', { name: 'Pause' }).isVisible())) fail('Space did not resume');
+
+  const box = await canvas.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2 + 20, { steps: 5 });
+  await page.mouse.up();
+  if (await page.getByRole('checkbox', { name: 'Auto-rotate' }).isChecked()) fail('grabbing the view left auto-rotate on');
+});
+
 step('saves a preset in the browser, keeps it across reloads, and deletes it', async () => {
   const n = await blockCards().count();
   await page.getByLabel('Preset name').fill('Smoke test');
