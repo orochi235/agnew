@@ -119,6 +119,13 @@ export interface AgnewView {
   /** How far along the curve the pen is, 0–1 by distance. Setting it moves
    *  the pen there. */
   progress: number;
+  /**
+   * Compose for a box smaller than the canvas, in CSS pixels. The picture
+   * keeps the position and scale it had at that size and the canvas paints
+   * past it — which is how art runs under a translucent panel without the
+   * framing moving. Exports and recordings still cover the framed box only.
+   */
+  setFraming(box: { width: number; height: number } | null): void;
   /** A PNG of the current frame at `scale` times the on-screen resolution,
    *  rendered in tiles so large sizes work on any GPU. */
   exportPNG(scale?: number): Promise<Blob>;
@@ -238,6 +245,7 @@ export function createAgnewView(
   let traceS = 0;
   let holdLeft = 0;
   let cum: Float64Array = new Float64Array(1);
+  let framing: { width: number; height: number } | null = null;
 
   interface Built {
     objects: Object3D[];
@@ -391,11 +399,14 @@ export function createAgnewView(
   function resize() {
     const w = Math.max(1, canvas.clientWidth);
     const h = Math.max(1, canvas.clientHeight);
+    const frame = framing ?? { width: w, height: h };
     renderer.setPixelRatio(basePixelRatio);
     renderer.setSize(w, h, false);
     composer.setPixelRatio(basePixelRatio);
     composer.setSize(w, h);
-    camera.aspect = w / h;
+    camera.aspect = frame.width / frame.height;
+    if (framing) camera.setViewOffset(frame.width, frame.height, 0, 0, w, h);
+    else camera.clearViewOffset();
     camera.updateProjectionMatrix();
     const res = new Vector2(w * basePixelRatio, h * basePixelRatio);
     if (built) {
@@ -488,8 +499,8 @@ export function createAgnewView(
    * shrink the glow.
    */
   function renderTiled(scale: number): HTMLCanvasElement {
-    const cw = Math.max(1, canvas.clientWidth);
-    const ch = Math.max(1, canvas.clientHeight);
+    const cw = Math.max(1, framing?.width ?? canvas.clientWidth);
+    const ch = Math.max(1, framing?.height ?? canvas.clientHeight);
     let W = Math.round(cw * basePixelRatio * scale);
     let H = Math.round(ch * basePixelRatio * scale);
     const fitK = Math.min(1, Math.sqrt(MAX_EXPORT_PIXELS / (W * H)), MAX_EXPORT_SIDE / Math.max(W, H));
@@ -589,6 +600,10 @@ export function createAgnewView(
       return settings;
     },
     fit,
+    setFraming(box) {
+      framing = box;
+      resize();
+    },
     get playing() {
       return playing;
     },
@@ -616,7 +631,23 @@ export function createAgnewView(
       return blob;
     },
     record(seconds, options = {}) {
-      const stream = canvas.captureStream(options.fps ?? 60);
+      // The canvas can be wider than the framed picture, so record a crop of
+      // it rather than handing out the part nobody can see.
+      let cropRaf = 0;
+      let source: HTMLCanvasElement = canvas;
+      if (framing) {
+        const crop = document.createElement('canvas');
+        crop.width = Math.round(framing.width * basePixelRatio);
+        crop.height = Math.round(framing.height * basePixelRatio);
+        const g = crop.getContext('2d')!;
+        const paint = () => {
+          cropRaf = requestAnimationFrame(paint);
+          g.drawImage(canvas, 0, 0, crop.width, crop.height, 0, 0, crop.width, crop.height);
+        };
+        paint();
+        source = crop;
+      }
+      const stream = source.captureStream(options.fps ?? 60);
       const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((t) =>
         MediaRecorder.isTypeSupported(t),
       );
@@ -629,6 +660,7 @@ export function createAgnewView(
       }
       return new Promise((resolve) => {
         rec.onstop = () => {
+          if (cropRaf) cancelAnimationFrame(cropRaf);
           for (const tr of stream.getTracks()) tr.stop();
           resolve(new Blob(chunks, { type: mimeType ?? 'video/webm' }));
         };

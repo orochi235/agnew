@@ -1,3 +1,9 @@
+/* LabShell pads its body for a workspace of tiles; this lab is one picture.
+   Fixed upstream — delete this with the next labkit. See docs/upstream-asks.md. */
+.lk-root {
+  --lk-workspace-pad: 0;
+}
+
 html,
 body,
 #root {
@@ -10,6 +16,7 @@ body {
 }
 
 .ag-layout {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   height: calc(100vh - 56px);
@@ -17,16 +24,24 @@ body {
 }
 
 .ag-bare {
+  position: relative;
   height: 100vh;
 }
 
 .ag-viewport {
   position: relative;
+  z-index: 1;
+  pointer-events: none;
   min-width: 0;
   min-height: 0;
 }
 
 .ag-canvas {
+  pointer-events: auto;
+  z-index: 0;
+  /* Spans the whole layout, sidebar included, so the art shows through it. */
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -48,6 +63,7 @@ body {
 
 .ag-transport {
   position: absolute;
+  pointer-events: auto;
   left: var(--wzl-space-3, 12px);
   bottom: var(--wzl-space-3, 12px);
   display: flex;
@@ -87,9 +103,12 @@ body {
 }
 
 .ag-sidebar {
+  position: relative;
+  z-index: 2;
   overflow-y: auto;
   border-left: 1px solid var(--wzl-border);
-  background: var(--wzl-surface);
+  background: color-mix(in srgb, var(--wzl-surface) 72%, transparent);
+  backdrop-filter: blur(14px);
   color: var(--wzl-fg);
   font-family: var(--wzl-font-ui);
 }

@@ -74,6 +74,7 @@ export function App() {
   const [playing, setPlaying] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<AgnewView | null>(null);
 
   useEffect(() => {
@@ -88,6 +89,19 @@ export function App() {
     requestAnimationFrame(() => view.fit());
     // The view is created once; later changes flow through the effects below.
     return () => view.dispose();
+  }, []);
+
+  // The canvas spans the window, under the translucent sidebar; the picture
+  // is composed for the clear area beside it.
+  useEffect(() => {
+    const box = viewportRef.current;
+    if (!box) return;
+    const apply = () =>
+      viewRef.current?.setFraming(BARE ? null : { width: box.clientWidth, height: box.clientHeight });
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(box);
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => viewRef.current?.setDesign(state.design), [state.design]);
@@ -195,27 +209,25 @@ export function App() {
   );
   const presetValue = presetOptions.some((o) => o.value === state.preset) ? state.preset : CUSTOM;
 
-  const viewport = (
-    <div className="ag-viewport">
-      <canvas ref={canvasRef} className="ag-canvas" />
-      {!BARE && !state.preset && <div className="ag-badge">custom</div>}
-      {!BARE && (
-        <Transport
-          view={viewRef}
-          playing={playing}
-          onPlayingChange={setPlaying}
-          scrubbable={state.view.layers.trace || state.view.layers.mechanism}
-        />
-      )}
-    </div>
-  );
+  // The canvas is a layer of its own under everything: the chrome floats over
+  // it, and the sidebar is translucent.
+  const canvas = <canvas ref={canvasRef} className="ag-canvas" />;
 
-  if (BARE) return <div className="ag-bare">{viewport}</div>;
+  if (BARE) return <div className="ag-bare">{canvas}</div>;
 
   return (
     <LabShell title="agnewgraph (rip ted)" mode="dark">
       <div className="ag-layout">
-        {viewport}
+        {canvas}
+        <div className="ag-viewport" ref={viewportRef}>
+          {!state.preset && <div className="ag-badge">custom</div>}
+          <Transport
+            view={viewRef}
+            playing={playing}
+            onPlayingChange={setPlaying}
+            scrubbable={state.view.layers.trace || state.view.layers.mechanism}
+          />
+        </div>
         <aside className="ag-sidebar">
           <section className="ag-section">
             <ControlPanel

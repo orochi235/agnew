@@ -31,9 +31,16 @@ const fail = (msg) => {
   throw new Error(msg);
 };
 
-/** Fraction of sampled canvas pixels that differ from the corner pixel. */
+/** The clear area the picture is composed for: the canvas runs on under the
+ *  translucent sidebar, and the transport bar sits over its bottom edge. */
+async function frameBox() {
+  const b = await page.locator('.ag-viewport').boundingBox();
+  return { x: b.x, y: b.y, width: b.width, height: b.height - 70 };
+}
+
+/** Fraction of sampled pixels in that area differing from its corner pixel. */
 async function inked() {
-  const shot = await page.locator('.ag-canvas').screenshot();
+  const shot = await page.screenshot({ clip: await frameBox() });
   return page.evaluate(async (b64) => {
     const img = new Image();
     img.src = `data:image/png;base64,${b64}`;
@@ -252,14 +259,14 @@ step('exports PNGs that match the screen at every scale', async () => {
   await page.getByRole('checkbox', { name: 'Trace' }).uncheck();
   await page.getByRole('checkbox', { name: 'Mechanism' }).uncheck();
   await page.waitForTimeout(1500);
-  const box = await page.locator('.ag-canvas').boundingBox();
+  const box = await page.locator('.ag-viewport').boundingBox();
   const one = await exportPNG(1);
   for (const k of [2, 4]) {
     const big = await exportPNG(k);
     const w = big.readUInt32BE(16);
     const h = big.readUInt32BE(20);
     if (w !== Math.round(box.width * 2 * k) || h !== Math.round(box.height * 2 * k)) {
-      fail(`${k}×: PNG is ${w}x${h}, expected ${k}× the ${box.width}x${box.height} canvas at 2 device pixels`);
+      fail(`${k}×: PNG is ${w}x${h}, expected ${k}× the ${box.width}x${box.height} framed picture at 2 device pixels`);
     }
     const d = await pngDiff(one, big);
     if (d > 3) fail(`${k}×: scaled down it differs from 1× by ${d.toFixed(2)}/255 — blank, or lines/bloom not scale-invariant`);

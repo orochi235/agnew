@@ -83,6 +83,10 @@ curve dims to a ghost), and **mechanism** (the arms at the pen's current time, a
 wireframe of any surface it is wrapped onto). `exportPNG(scale)` renders at a
 multiple of screen resolution; `record(seconds)` returns a WebM.
 
+`view.setFraming({width, height})` composes for a box smaller than the canvas,
+so the canvas can run under a translucent panel while the picture stays where
+it is; exports and recordings cover the framed box only.
+
 `view.playing = false` freezes the pen, the mechanism and auto-rotation on the
 current frame, and `view.progress` (0–1 by distance) reads or moves the pen.
 The lab puts both in a bar over the canvas (Space toggles play), and grabbing
