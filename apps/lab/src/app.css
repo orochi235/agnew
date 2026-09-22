@@ -94,6 +94,25 @@ body {
   cursor: default;
 }
 
+.ag-name {
+  flex: 1;
+  min-width: 0;
+  height: var(--wzl-control-h, 28px);
+  padding: 0 var(--wzl-space-2, 8px);
+  border: 1px solid var(--wzl-border);
+  border-radius: var(--wzl-radius-sm, 4px);
+  background: var(--wzl-surface-sunken);
+  color: var(--wzl-fg);
+  font: inherit;
+  font-size: var(--wzl-font-size-sm, 12px);
+}
+
+.ag-note {
+  margin: var(--wzl-space-2, 8px) 0 0;
+  font-size: var(--wzl-font-size-xs, 11px);
+  color: var(--wzl-fg-muted);
+}
+
 .ag-inline {
   display: inline-flex;
   align-items: center;

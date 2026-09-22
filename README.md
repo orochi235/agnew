@@ -79,6 +79,9 @@ ghost), and **mechanism** (the arms at the pen's current time, and the
 wireframe of any surface it is wrapped onto). `exportPNG(scale)` renders at a
 multiple of screen resolution; `record(seconds)` returns a WebM.
 
+The lab saves presets (design plus look) by name in the browser, where they
+join the preset dropdown, or as `.agnew.json` files to keep or share.
+
 In the neon style, lines add light where they cross, so the view dims a curve
 that is long relative to its size.
 

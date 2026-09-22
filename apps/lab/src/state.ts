@@ -14,20 +14,30 @@ export function initialState(): LabState {
   return { preset: p.name, design: p.design(), view: DEFAULT_VIEW };
 }
 
+/** The lab state as plain JSON: what the URL, saved presets and files hold. */
+export function snapshot(s: LabState): unknown {
+  return { preset: s.preset, design: portableDesign(s.design), view: s.view };
+}
+
+/** A lab state from untrusted JSON, or `null` when there is no usable design. */
+export function restore(raw: unknown): LabState | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  const design = sanitizeDesign(r.design);
+  if (!design) return null;
+  return { preset: typeof r.preset === 'string' ? r.preset : '', design, view: sanitizeView(r.view) };
+}
+
 /** The whole lab as a URL hash, so any state is a link. */
 export function writeHash(s: LabState): void {
-  const text = encode({ preset: s.preset, design: portableDesign(s.design), view: s.view });
-  history.replaceState(null, '', `#s=${text}`);
+  history.replaceState(null, '', `#s=${encode(snapshot(s))}`);
 }
 
 function readHash(): LabState | null {
   const m = location.hash.match(/^#s=([A-Za-z0-9_-]+)$/);
   if (!m) return null;
   try {
-    const raw = decode(m[1]) as Record<string, unknown>;
-    const design = sanitizeDesign(raw.design);
-    if (!design) return null;
-    return { preset: typeof raw.preset === 'string' ? raw.preset : '', design, view: sanitizeView(raw.view) };
+    return restore(decode(m[1]));
   } catch {
     return null;
   }

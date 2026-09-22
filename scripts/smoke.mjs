@@ -119,6 +119,40 @@ step('restores state from the URL', async () => {
   if (!(await page.locator('.ag-badge').isVisible())) fail('reload lost the custom state');
 });
 
+step('saves a preset in the browser, keeps it across reloads, and deletes it', async () => {
+  const n = await blockCards().count();
+  await page.getByLabel('Preset name').fill('Smoke test');
+  await page.getByRole('button', { name: 'Save preset' }).click();
+  const option = selects().nth(0).locator('option', { hasText: 'Smoke test (saved)' });
+  if ((await option.count()) !== 1) fail('saved preset missing from the dropdown');
+  await selects().nth(0).selectOption('Torus knot');
+  if ((await blockCards().count()) !== 1) fail('built-in preset did not load');
+  await page.goto('about:blank');
+  await page.goto(values.url);
+  await page.waitForTimeout(800);
+  await selects().nth(0).selectOption('saved:Smoke test');
+  if ((await blockCards().count()) !== n) fail(`saved preset reloaded with ${await blockCards().count()} blocks, not ${n}`);
+  if ((await page.getByLabel('Preset name').inputValue()) !== 'Smoke test') fail('name field not filled from preset');
+  await page.getByRole('button', { name: 'Delete' }).click();
+  if ((await option.count()) !== 0) fail('deleted preset still listed');
+});
+
+step('saves a preset file and loads it back', async () => {
+  const n = await blockCards().count();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save file' }).click()]);
+  if (!dl.suggestedFilename().endsWith('.agnew.json')) fail(`bad file name ${dl.suggestedFilename()}`);
+  const file = await dl.path();
+  await selects().nth(0).selectOption('Torus knot');
+  await page.locator('input[type=file]').setInputFiles(file);
+  await page.waitForTimeout(300);
+  if ((await blockCards().count()) !== n) fail('file did not restore the stack');
+  if (!(await page.getByRole('status').textContent()).startsWith('Loaded')) fail('no load confirmation');
+  await page.locator('input[type=file]').setInputFiles({ name: 'junk.json', mimeType: 'application/json', buffer: Buffer.from('{"nope":1}') });
+  await page.waitForTimeout(300);
+  if (!(await page.getByRole('status').textContent()).includes('no agnew design')) fail('bad file not reported');
+  if ((await blockCards().count()) !== n) fail('bad file changed the stack');
+});
+
 /** Download a PNG export at `k`× and return its bytes. */
 async function exportPNG(k) {
   const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: `PNG ${k}×` }).click()]);
