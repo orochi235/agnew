@@ -5,14 +5,19 @@
 //
 //   node scripts/smoke.mjs [--url http://localhost:5190]
 
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright-core';
 
 const { values } = parseArgs({ options: { url: { type: 'string', default: 'http://localhost:5190' } } });
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal'] });
-const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
+// Retina scale: large exports only fail when device pixels multiply the size.
+const page = await browser.newPage({
+  viewport: { width: 1280, height: 800 },
+  deviceScaleFactor: 2,
+  acceptDownloads: true,
+});
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -43,11 +48,6 @@ async function inked() {
     }
     return hit / n;
   }, shot.toString('base64'));
-}
-
-async function pngSize(path) {
-  const b = readFileSync(path);
-  return { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
 }
 
 const hash = () => page.evaluate(() => location.hash);
@@ -119,16 +119,57 @@ step('restores state from the URL', async () => {
   if (!(await page.locator('.ag-badge').isVisible())) fail('reload lost the custom state');
 });
 
-step('exports a PNG', async () => {
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'PNG 2×' }).click()]);
-  if (!dl.suggestedFilename().endsWith('@2x.png')) fail(`bad PNG name ${dl.suggestedFilename()}`);
-  const { width, height } = await pngSize(await dl.path());
+/** Download a PNG export at `k`× and return its bytes. */
+async function exportPNG(k) {
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: `PNG ${k}×` }).click()]);
+  if (!dl.suggestedFilename().endsWith(`@${k}x.png`)) fail(`bad PNG name ${dl.suggestedFilename()}`);
+  const bytes = readFileSync(await dl.path());
+  if (process.env.SMOKE_KEEP) writeFileSync(`${process.env.SMOKE_KEEP}/export@${k}x.png`, bytes);
+  return bytes;
+}
+
+/** Mean per-channel difference (0–255) between two PNGs, the second scaled to the first. */
+function pngDiff(a, b) {
+  return page.evaluate(
+    async ([a64, b64]) => {
+      const load = async (s) => createImageBitmap(await (await fetch(`data:image/png;base64,${s}`)).blob());
+      const [ia, ib] = await Promise.all([load(a64), load(b64)]);
+      const pixels = (im) => {
+        const c = new OffscreenCanvas(ia.width, ia.height);
+        const g = c.getContext('2d');
+        g.imageSmoothingQuality = 'high';
+        g.drawImage(im, 0, 0, ia.width, ia.height);
+        return g.getImageData(0, 0, ia.width, ia.height).data;
+      };
+      const pa = pixels(ia);
+      const pb = pixels(ib);
+      let sum = 0;
+      for (let i = 0; i < pa.length; i += 4) {
+        sum += Math.abs(pa[i] - pb[i]) + Math.abs(pa[i + 1] - pb[i + 1]) + Math.abs(pa[i + 2] - pb[i + 2]);
+      }
+      return sum / ((pa.length / 4) * 3);
+    },
+    [a.toString('base64'), b.toString('base64')],
+  );
+}
+
+step('exports PNGs that match the screen at every scale', async () => {
+  await page.getByRole('checkbox', { name: 'Auto-rotate' }).uncheck();
+  await page.getByRole('checkbox', { name: 'Trace' }).uncheck();
+  await page.getByRole('checkbox', { name: 'Mechanism' }).uncheck();
+  await page.waitForTimeout(1500);
   const box = await page.locator('.ag-canvas').boundingBox();
-  const dpr = await page.evaluate(() => Math.min(devicePixelRatio, 2));
-  if (width !== Math.round(box.width * dpr * 2) || height !== Math.round(box.height * dpr * 2)) {
-    fail(`PNG is ${width}x${height}, expected 2x the ${box.width}x${box.height} canvas`);
+  const one = await exportPNG(1);
+  for (const k of [2, 4]) {
+    const big = await exportPNG(k);
+    const w = big.readUInt32BE(16);
+    const h = big.readUInt32BE(20);
+    if (w !== Math.round(box.width * 2 * k) || h !== Math.round(box.height * 2 * k)) {
+      fail(`${k}×: PNG is ${w}x${h}, expected ${k}× the ${box.width}x${box.height} canvas at 2 device pixels`);
+    }
+    const d = await pngDiff(one, big);
+    if (d > 3) fail(`${k}×: scaled down it differs from 1× by ${d.toFixed(2)}/255 — blank, or lines/bloom not scale-invariant`);
   }
-  if (process.env.SMOKE_KEEP) await dl.saveAs(`${process.env.SMOKE_KEEP}/export@2x.png`);
 });
 
 step('records a video', async () => {

@@ -22,6 +22,7 @@ import {
   Points,
   PointsMaterial,
   Scene,
+  ShaderMaterial,
   Sprite,
   SpriteMaterial,
   type Texture,
@@ -34,7 +35,10 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -107,7 +111,8 @@ export interface AgnewView {
   /** Move the camera so the whole curve is in view, keeping its direction. */
   fit(): void;
   restartTrace(): void;
-  /** A PNG of the current frame at `scale` times the on-screen resolution. */
+  /** A PNG of the current frame at `scale` times the on-screen resolution,
+   *  rendered in tiles so large sizes work on any GPU. */
   exportPNG(scale?: number): Promise<Blob>;
   /** A WebM of the canvas for `seconds`. */
   record(seconds: number, options?: RecordOptions): Promise<Blob>;
@@ -115,6 +120,35 @@ export interface AgnewView {
 }
 
 const MAX_MESH_POINTS = 24000;
+/** Export tile edge in device pixels; small enough for any GPU's MSAA HDR target. */
+const EXPORT_TILE = 2048;
+/** Limits of a 2D canvas the browser will reliably allocate and encode. */
+const MAX_EXPORT_SIDE = 16384;
+const MAX_EXPORT_PIXELS = 120_000_000;
+
+/** Adds a whole-frame bloom texture into one tile of it. */
+const TILE_BLOOM_SHADER = {
+  uniforms: {
+    tDiffuse: { value: null },
+    tBloom: { value: null as Texture | null },
+    offset: { value: new Vector2() },
+    span: { value: new Vector2(1, 1) },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform sampler2D tBloom;
+    uniform vec2 offset;
+    uniform vec2 span;
+    varying vec2 vUv;
+    void main() {
+      // offset is measured from the top-left, uv from the bottom-left.
+      vec2 full = vec2(offset.x + vUv.x * span.x, 1.0 - (offset.y + (1.0 - vUv.y) * span.y));
+      gl_FragColor = texture2D(tDiffuse, vUv) + texture2D(tBloom, full);
+    }`,
+};
 const MAX_JOINTS = 64;
 /** How long a finished trace holds before the pen starts again. */
 const TRACE_HOLD_SECONDS = 1.5;
@@ -148,7 +182,11 @@ export function createAgnewView(
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new Vector2(1, 1), settings.bloom, 0.45, 0);
   composer.addPass(bloom);
+  const tileBloom = new ShaderPass(TILE_BLOOM_SHADER);
+  tileBloom.enabled = false;
+  composer.addPass(tileBloom);
   composer.addPass(new OutputPass());
+  const copyQuad = new FullScreenQuad(new ShaderMaterial(CopyShader));
 
   const curveGroup = new Group();
   const traceGroup = new Group();
@@ -415,6 +453,79 @@ export function createAgnewView(
 
   raf = requestAnimationFrame(frame);
 
+  /**
+   * The frame at `scale` times the on-screen resolution, drawn in tiles small
+   * enough for any GPU to allocate. Bloom is a screen-space blur, so it is
+   * computed once from the whole frame at screen resolution and added into
+   * each sharp tile — blooming tiles separately would seam at their edges and
+   * shrink the glow.
+   */
+  function renderTiled(scale: number): HTMLCanvasElement {
+    const cw = Math.max(1, canvas.clientWidth);
+    const ch = Math.max(1, canvas.clientHeight);
+    let W = Math.round(cw * basePixelRatio * scale);
+    let H = Math.round(ch * basePixelRatio * scale);
+    const fitK = Math.min(1, Math.sqrt(MAX_EXPORT_PIXELS / (W * H)), MAX_EXPORT_SIDE / Math.max(W, H));
+    if (fitK < 1) {
+      console.warn(`agnew: export capped at ${Math.floor(W * fitK)}×${Math.floor(H * fitK)} (asked ${W}×${H})`);
+      W = Math.floor(W * fitK);
+      H = Math.floor(H * fitK);
+    }
+    const pxScale = W / cw; // device pixels per CSS pixel in the export
+
+    resize();
+    renderFrame(0);
+    let bloomCopy: WebGLRenderTarget | null = null;
+    if (bloom.enabled) {
+      const src = bloom.renderTargetsHorizontal[0];
+      bloomCopy = new WebGLRenderTarget(src.width, src.height, { type: HalfFloatType });
+      (copyQuad.material as ShaderMaterial).uniforms.tDiffuse.value = src.texture;
+      renderer.setRenderTarget(bloomCopy);
+      copyQuad.render(renderer);
+      renderer.setRenderTarget(null);
+    }
+
+    const out = document.createElement('canvas');
+    out.width = W;
+    out.height = H;
+    const g = out.getContext('2d')!;
+    const bloomWasOn = bloom.enabled;
+    bloom.enabled = false;
+    tileBloom.enabled = !!bloomCopy;
+    tileBloom.uniforms.tBloom.value = bloomCopy?.texture ?? null;
+    renderer.setPixelRatio(1);
+    composer.setPixelRatio(1);
+    try {
+      for (let y = 0; y < H; y += EXPORT_TILE) {
+        for (let x = 0; x < W; x += EXPORT_TILE) {
+          const tw = Math.min(EXPORT_TILE, W - x);
+          const th = Math.min(EXPORT_TILE, H - y);
+          renderer.setSize(tw, th, false);
+          composer.setSize(tw, th);
+          camera.setViewOffset(W, H, x, y, tw, th);
+          if (built) {
+            built.lineMaterials.forEach((m, i) => {
+              m.resolution.set(tw, th);
+              m.linewidth = built!.baseWidths[i] * pxScale;
+            });
+          }
+          dotMat.size = 6 * pxScale;
+          tileBloom.uniforms.offset.value.set(x / W, y / H);
+          tileBloom.uniforms.span.value.set(tw / W, th / H);
+          composer.render(0);
+          g.drawImage(canvas, 0, 0, tw, th, x, y, tw, th);
+        }
+      }
+    } finally {
+      camera.clearViewOffset();
+      bloom.enabled = bloomWasOn;
+      tileBloom.enabled = false;
+      bloomCopy?.dispose();
+      resize();
+    }
+    return out;
+  }
+
   function fit() {
     const r = Math.max(curve?.radius ?? (design ? evaluate({ ...design, samples: 2000 }).radius : 1), 0.05);
     const dist = (r / Math.sin(((camera.fov / 2) * Math.PI) / 180)) * 1.08;
@@ -456,15 +567,9 @@ export function createAgnewView(
       holdLeft = 0;
     },
     async exportPNG(scale = 2) {
-      const prev = basePixelRatio;
-      basePixelRatio = prev * scale;
-      resize();
-      renderFrame(0);
       const blob = await new Promise<Blob>((resolve, reject) =>
-        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('agnew: PNG export failed'))), 'image/png'),
+        renderTiled(scale).toBlob((b) => (b ? resolve(b) : reject(new Error('agnew: PNG export failed'))), 'image/png'),
       );
-      basePixelRatio = prev;
-      resize();
       return blob;
     },
     record(seconds, options = {}) {
@@ -498,6 +603,8 @@ export function createAgnewView(
       envMap.dispose();
       pmrem.dispose();
       glow.dispose();
+      copyQuad.dispose();
+      (copyQuad.material as ShaderMaterial).dispose();
       armGeom.dispose();
       guides.geometry.dispose();
       for (const m of [armMat, dotMat, guideMat, pen.material]) m.dispose();
