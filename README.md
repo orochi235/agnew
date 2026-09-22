@@ -5,6 +5,9 @@ motions (rotating arms, pendulums, torus windings), optionally wrapped onto a
 sphere or torus, decayed or precessed, and drawn with three.js as glowing
 lines, lit metal tubes, ink on paper or iridescent ribbons.
 
+**Live:** [michaelbaker.tech/agnew](https://michaelbaker.tech/agnew/) — the lab,
+deployed from `main` by `.github/workflows/pages.yml`.
+
 **Status: prototype.** Everything below works and is covered by the tests and
 the smoke script; nothing is published to npm yet.
 
