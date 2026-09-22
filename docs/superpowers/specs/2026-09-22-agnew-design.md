@@ -4,7 +4,8 @@ Composable 3D spirograph line art: a TypeScript library that turns a stack of
 simple motions into a 3D curve and draws it with three.js, plus a lab app for
 tuning curves and exporting them. This doc is for whoever picks the project up
 next; it records the decisions made while brainstorming (2026-09-21) that the
-code alone would not tell you.
+code alone would not tell you. **Status:** prototype built 2026-09-22; the
+items under "Not in the prototype" are unbuilt.
 
 ## Decisions
 

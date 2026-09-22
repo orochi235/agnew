@@ -10,7 +10,9 @@
     "dev": "npm run dev -w @agnew/lab",
     "build": "npm run build -w agnew && npm run build -w @agnew/lab",
     "test": "npm test -w agnew",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "shots": "npm run build -w agnew && node scripts/shots.mjs",
+    "smoke": "node scripts/smoke.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.63.0"

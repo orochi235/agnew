@@ -1,7 +1,7 @@
 # agnew prototype — implementation plan
 
-> Executed inline in the session that wrote it (overnight build, 2026-09-22).
-> Tasks are listed at file granularity; the code in the repo is the detail.
+> **Done** — executed inline in the session that wrote it (overnight build,
+> 2026-09-22). Kept as a record of the file layout; the code is the detail.
 
 **Goal:** a working lab that composes 3D spirograph curves from blocks and
 renders them in four styles with curve / trace / mechanism layers and PNG +
