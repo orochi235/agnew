@@ -1,0 +1,12 @@
+{
+  "name": "agnew-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "dev": "npm run dev -w @agnew/lab",
+    "build": "npm run build -w agnew && npm run build -w @agnew/lab",
+    "test": "npm test -w agnew",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  }
+}
