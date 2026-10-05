@@ -1,0 +1,62 @@
+import { describe, expect, it } from 'vitest';
+import type { Vec3 } from '../vec.js';
+import { fovFor, halfTangents, orbitDistance, tightFraming } from './framing.js';
+
+const basis: { right: Vec3; up: Vec3; back: Vec3 } = { right: [1, 0, 0], up: [0, 1, 0], back: [0, 0, 1] };
+
+/** Screen extents of the points, as tangents, from a camera panned by `pan` at distance `d`. */
+function extents(points: number[], d: number, pan: [number, number]) {
+  const e = { left: Infinity, right: -Infinity, bottom: Infinity, top: -Infinity };
+  for (let i = 0; i < points.length; i += 3) {
+    const depth = d - points[i + 2];
+    const x = (points[i] - pan[0]) / depth;
+    const y = (points[i + 1] - pan[1]) / depth;
+    e.left = Math.min(e.left, x);
+    e.right = Math.max(e.right, x);
+    e.bottom = Math.min(e.bottom, y);
+    e.top = Math.max(e.top, y);
+  }
+  return e;
+}
+
+describe('fovFor', () => {
+  it('keeps 40° for ordinary and tall frames', () => {
+    expect(fovFor(1.6)).toBe(40);
+    expect(fovFor(0.25)).toBe(40);
+  });
+
+  it('narrows the vertical angle so a very wide frame spans 70° across', () => {
+    const [, tx] = halfTangents(fovFor(8), 8);
+    expect((2 * Math.atan(tx) * 180) / Math.PI).toBeCloseTo(70, 6);
+  });
+});
+
+describe('orbitDistance', () => {
+  it('is limited by the narrower half-angle', () => {
+    const [ty, tx] = halfTangents(40, 0.5);
+    expect(orbitDistance(1, ty, tx)).toBeCloseTo(orbitDistance(1, tx, tx));
+    expect(orbitDistance(1, ty, tx)).toBeGreaterThan(orbitDistance(1, ty, ty));
+  });
+});
+
+describe('tightFraming', () => {
+  it('fills a wide frame with a wide strip, inside the margin', () => {
+    const pts = [-4, -0.5, 0, 4, 0.5, 0, 0, 0, 0.3];
+    const [ty, tx] = halfTangents(40, 8);
+    const f = tightFraming(new Float32Array(pts), 3, basis, ty, tx);
+    const e = extents(pts, f.distance, f.pan);
+    expect(Math.max(e.right, -e.left)).toBeLessThanOrEqual(tx / 1.08 + 1e-9);
+    expect(Math.max(e.top, -e.bottom)).toBeLessThanOrEqual(ty / 1.08 + 1e-9);
+    expect(Math.max(e.right / tx, e.top / ty)).toBeCloseTo(1 / 1.08, 4);
+  });
+
+  it('pans so a strip receding in depth sits centered rather than off to one side', () => {
+    const pts = [-3, 0, -0.5, 3, 0, 0.5, -3, 0.3, -0.5, 3, -0.3, 0.5];
+    const [ty, tx] = halfTangents(40, 8);
+    const f = tightFraming(new Float32Array(pts), 4, basis, ty, tx);
+    const e = extents(pts, f.distance, f.pan);
+    expect(f.pan[0]).not.toBeCloseTo(0, 2);
+    expect(e.left).toBeCloseTo(-e.right, 6);
+    expect(e.right).toBeCloseTo(tx / 1.08, 4);
+  });
+});

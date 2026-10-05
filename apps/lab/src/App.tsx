@@ -1,6 +1,6 @@
 import { type ConfigOption, ControlPanel, f, LabShell, resolveConfigSchema, withValueAtPath } from '@weasel-js/labkit';
 import { type Design, PRESETS, presetByName } from 'agnew';
-import { type AgnewView, createAgnewView, PALETTES, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
+import { type AgnewView, createAgnewView, FIT_MODES, PALETTES, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { parsePresetFile, presetFile, SAVED_PREFIX, useSavedPresets } from './saved';
 import { StackEditor } from './StackEditor';
@@ -31,6 +31,11 @@ const viewSchema = resolveConfigSchema(
     ribbonWidth: f.number(0.035).range(0.005, 0.15).step(0.001).label('Ribbon width').manual().showIf(isStyle('ribbon')),
     ribbonTwist: f.number(40).range(0, 400).step(1).label('Ribbon twists').manual().showIf(isStyle('ribbon')),
     autoRotate: f.boolean(true).label('Auto-rotate').manual(),
+    fit: f
+      .enum('orbit', [...FIT_MODES])
+      .label('Fit')
+      .describe('Orbit keeps the whole curve in view from any angle; tight fills the frame from this one.')
+      .manual(),
     layers: f.group({
       curve: f.boolean(true).label('Curve').manual(),
       trace: f.boolean(false).label('Trace').manual(),
@@ -106,6 +111,7 @@ export function App() {
 
   useEffect(() => viewRef.current?.setDesign(state.design), [state.design]);
   useEffect(() => viewRef.current?.setSettings(state.view), [state.view]);
+  useEffect(() => viewRef.current?.fit(), [state.view.fit]);
   useEffect(() => {
     if (viewRef.current) viewRef.current.playing = playing;
   }, [playing]);

@@ -27,6 +27,7 @@ import {
   SpriteMaterial,
   type Texture,
   Vector2,
+  Vector3,
   WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
@@ -45,6 +46,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { arcLengths, indexAtLength } from '../arclength.js';
 import { type Curve, type Design, evaluate, evaluateAt, timeSpan } from '../design.js';
 import { buildRibbon, buildTube, decimate, type SweptGeometry } from './geometry.js';
+import { type FitMode, fovFor, halfTangents, orbitDistance, tightFraming } from './framing.js';
 import { gradientColors, paletteStops } from './palette.js';
 
 export type Style = 'neon' | 'tube' | 'ink' | 'ribbon';
@@ -74,6 +76,8 @@ export interface ViewSettings {
    *  curve takes longer to draw. */
   traceSpeed: number;
   autoRotate: boolean;
+  /** How `fit()` frames the curve. */
+  fit: FitMode;
 }
 
 /** What switching to a style should also change, so each one opens looking right. */
@@ -97,6 +101,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   layers: { curve: true, trace: false, mechanism: false },
   traceSpeed: 4,
   autoRotate: true,
+  fit: 'orbit',
 };
 
 export interface RecordOptions {
@@ -185,7 +190,7 @@ export function createAgnewView(
   renderer.setPixelRatio(basePixelRatio);
 
   const scene = new Scene();
-  const camera = new PerspectiveCamera(40, 1, 0.01, 100);
+  const camera = new PerspectiveCamera(fovFor(1), 1, 0.01, 100);
   camera.position.set(1.1, 0.9, 3.2);
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
@@ -405,6 +410,7 @@ export function createAgnewView(
     composer.setPixelRatio(basePixelRatio);
     composer.setSize(w, h);
     camera.aspect = frame.width / frame.height;
+    camera.fov = fovFor(camera.aspect);
     if (framing) camera.setViewOffset(frame.width, frame.height, 0, 0, w, h);
     else camera.clearViewOffset();
     camera.updateProjectionMatrix();
@@ -565,13 +571,24 @@ export function createAgnewView(
   }
 
   function fit() {
-    const r = Math.max(curve?.radius ?? (design ? evaluate({ ...design, samples: 2000 }).radius : 1), 0.05);
-    const dist = (r / Math.sin(((camera.fov / 2) * Math.PI) / 180)) * 1.08;
-    camera.position.setLength(dist);
+    const c = curve ?? (design ? evaluate({ ...design, samples: 2000 }) : null);
+    const [ty, tx] = halfTangents(camera.fov, camera.aspect);
+    let dist = orbitDistance(Math.max(c?.radius ?? 1, 0.05), ty, tx);
+    const target = new Vector3();
+    const back = camera.position.clone().sub(controls.target).normalize();
+    if (settings.fit === 'tight' && c) {
+      const right = new Vector3(0, 1, 0).cross(back).normalize();
+      const up = back.clone().cross(right);
+      const basis = { right: right.toArray(), up: up.toArray(), back: back.toArray() };
+      const f = tightFraming(c.positions, c.count, basis, ty, tx);
+      dist = Math.max(f.distance, 0.05);
+      target.addScaledVector(right, f.pan[0]).addScaledVector(up, f.pan[1]);
+    }
+    camera.position.copy(target).addScaledVector(back, dist);
     camera.near = dist / 100;
     camera.far = dist * 10;
     camera.updateProjectionMatrix();
-    controls.target.set(0, 0, 0);
+    controls.target.copy(target);
   }
 
   return {

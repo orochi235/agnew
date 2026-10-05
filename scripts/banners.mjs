@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Wide, quiet strips cut through the middle of a curve, for title-bar
-// backgrounds. Needs the lab dev server running and `npm run build -w agnew`.
-// Each one is rendered square in the lab's ?bare mode and clipped to a band,
-// since the lab frames the whole curve by height.
+// Curves stretched to fill rects of different shapes — a long top bar, a
+// header, a card, a sidebar — for backgrounds. Needs the lab dev server
+// running and `npm run build -w agnew`. Each look is squashed with a scale
+// block toward the rect's aspect and framed with the view's tight fit, then
+// rendered at that rect's size in the lab's ?bare mode.
 //
 //   node scripts/banners.mjs [--url http://localhost:5190] [--out banners] [--only <substring>]
 
@@ -21,10 +22,26 @@ const { values } = parseArgs({
   },
 });
 
-/** Square side of the render, in CSS pixels; device scale 2 doubles it. */
-const SIDE = 1920;
-/** Band height in CSS pixels: 8:1, the shape of a wide title bar. */
-const BAND = 240;
+/** Rect sizes in CSS pixels; device scale 2 doubles them. */
+const SHAPES = [
+  { name: 'topbar', width: 1920, height: 240 },
+  { name: 'long-topbar', width: 2560, height: 128 },
+  { name: 'header', width: 1600, height: 400 },
+  { name: 'card', width: 1200, height: 600 },
+  { name: 'sidebar', width: 320, height: 1280 },
+];
+
+/** Scale factors that bring a curve of roughly unit extent to `aspect`,
+ *  within the scale block's ±3. Depth is squashed with the short side, or
+ *  the oblique camera turns it back into height. */
+function stretch(aspect) {
+  if (aspect >= 1) {
+    const x = Math.min(3, Math.sqrt(aspect));
+    return { x, y: x / aspect, z: x / aspect };
+  }
+  const y = Math.min(3, 1 / Math.sqrt(aspect));
+  return { x: y * aspect, y, z: y * aspect };
+}
 
 const design = (turns, samples, blocks) => ({
   version: 1,
@@ -35,17 +52,16 @@ const design = (turns, samples, blocks) => ({
 const preset = (name) => presetByName(name).design();
 
 function view(style, patch = {}) {
-  return { ...DEFAULT_VIEW, ...STYLE_DEFAULTS[style], style, autoRotate: false, ...patch, layers: DEFAULT_VIEW.layers };
+  return { ...DEFAULT_VIEW, ...STYLE_DEFAULTS[style], style, autoRotate: false, fit: 'tight', ...patch, layers: DEFAULT_VIEW.layers };
 }
 
-/** `band` moves the strip off center: -1 is the top edge, 1 the bottom. */
-const BANNERS = [
+const LOOKS = [
   { name: 'Woven band, ice', design: preset('Woven band'), view: view('neon', { palette: 'ice', lineOpacity: 0.3, bloom: 0.6 }) },
   { name: 'Woven band, ink', design: preset('Woven band'), view: view('ink', { lineOpacity: 0.35, lineWidth: 1 }) },
   { name: 'Harmonograph, ember', design: preset('Harmonograph'), view: view('neon', { palette: 'ember', lineOpacity: 0.22, bloom: 0.7 }) },
   { name: 'Harmonograph, ink', design: preset('Harmonograph'), view: view('ink', { lineOpacity: 0.3, lineWidth: 0.9 }) },
   { name: 'Torus knot, aurora', design: preset('Torus knot'), view: view('neon', { lineOpacity: 0.35, bloom: 0.7 }) },
-  { name: 'Nautilus, spectrum', design: preset('Nautilus'), view: view('neon', { palette: 'spectrum', lineOpacity: 0.2, bloom: 0.5 }), band: 0.15 },
+  { name: 'Nautilus, spectrum', design: preset('Nautilus'), view: view('neon', { palette: 'spectrum', lineOpacity: 0.2, bloom: 0.5 }) },
   { name: 'Precessing gears, mono', design: preset('Precessing gears'), view: view('neon', { palette: 'mono', background: '#0b0d12', lineOpacity: 0.14, bloom: 0.3, lineWidth: 1.2 }) },
   { name: 'Orbiting spirograph, ice ribbon', design: preset('Orbiting spirograph'), view: view('ribbon', { ribbonWidth: 0.02 }) },
   {
@@ -75,37 +91,49 @@ const BANNERS = [
     name: 'Brass loom',
     design: design(1, 24000, [['torusKnot', { p: 4, q: 61, R: 0.72, r: 0.22 }]]),
     view: view('tube', { tubeRadius: 0.004, bloom: 0.1 }),
-    band: -0.2,
   },
 ];
 
-const selected = BANNERS.filter((b) => b.name.toLowerCase().includes(values.only.toLowerCase()));
-mkdirSync(values.out, { recursive: true });
+const banners = SHAPES.flatMap((shape) =>
+  LOOKS.map((look) => ({
+    name: `${shape.name}/${look.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    shape,
+    look,
+  })),
+);
+const selected = banners.filter((b) => b.name.includes(values.only.toLowerCase()));
 console.log(`onto: plan ${selected.length} banners`);
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal'] });
-const page = await browser.newPage({ viewport: { width: SIDE, height: SIDE }, deviceScaleFactor: 2 });
 const errors = [];
-page.on('pageerror', (e) => errors.push(e.message));
-page.on('console', (m) => m.type() === 'error' && !m.text().includes('favicon') && errors.push(m.text()));
-
 const links = [];
 let i = 0;
-for (const b of selected) {
-  i += 1;
-  const hash = encode({ preset: '', design: portableDesign(b.design), view: b.view });
-  const stem = b.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  await page.goto('about:blank');
-  await page.goto(`${values.url}/?bare#s=${hash}`);
-  await page.waitForSelector('.ag-canvas');
-  await page.waitForTimeout(2000);
-  const y = Math.round(SIDE / 2 + ((b.band ?? 0) * (SIDE - BAND)) / 2 - BAND / 2);
-  const file = join(values.out, `${stem}.png`);
-  await page.screenshot({ path: file, clip: { x: 0, y, width: SIDE, height: BAND } });
-  links.push(`${b.name}\t#s=${hash}`);
-  console.log(`${String(i).padStart(2)}/${selected.length} ${file}`);
-  console.log(`onto: progress ${i}/${selected.length}`);
+for (const shape of SHAPES) {
+  const mine = selected.filter((b) => b.shape === shape);
+  if (!mine.length) continue;
+  mkdirSync(join(values.out, shape.name), { recursive: true });
+  const page = await browser.newPage({ viewport: { width: shape.width, height: shape.height }, deviceScaleFactor: 2 });
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && !m.text().includes('favicon') && errors.push(m.text()));
+  const k = stretch(shape.width / shape.height);
+  for (const b of mine) {
+    i += 1;
+    const d = b.look.design;
+    const design = { ...d, blocks: [...d.blocks, createBlock('scale', k)] };
+    const hash = encode({ preset: '', design: portableDesign(design), view: b.look.view });
+    await page.goto('about:blank');
+    await page.goto(`${values.url}/?bare#s=${hash}`);
+    await page.waitForSelector('.ag-canvas');
+    await page.waitForTimeout(2000);
+    const file = join(values.out, `${b.name}.png`);
+    await page.locator('.ag-canvas').screenshot({ path: file });
+    links.push(`${b.name}\t#s=${hash}`);
+    console.log(`${String(i).padStart(2)}/${selected.length} ${file}`);
+    console.log(`onto: progress ${i}/${selected.length}`);
+  }
+  await page.close();
 }
 await browser.close();
+mkdirSync(values.out, { recursive: true });
 writeFileSync(join(values.out, 'links.tsv'), `${links.join('\n')}\n`);
 if (errors.length) {
   console.error(`page errors:\n${[...new Set(errors)].join('\n')}`);
