@@ -9,10 +9,11 @@
   "scripts": {
     "dev": "npm run dev -w @agnew/lab",
     "build": "npm run build -w agnew && npm run build -w @agnew/lab",
-    "test": "npm test -w agnew",
+    "test": "npm test -w agnew --",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "shots": "npm run build -w agnew && node scripts/shots.mjs",
-    "smoke": "npm run build -w agnew && node scripts/smoke.mjs"
+    "smoke": "npm run build -w agnew && node scripts/smoke.mjs",
+    "banners": "npm run build -w agnew && node scripts/banners.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.63.0"
