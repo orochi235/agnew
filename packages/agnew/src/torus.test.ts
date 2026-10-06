@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { sanitizeDesign } from './codec.js';
+import { createBlock, evaluate, sampleCount } from './design.js';
 import { torusAt } from './torus.js';
 
 const R = 0.7;
@@ -44,5 +46,42 @@ describe('torusAt', () => {
     const near = torusAt(R, r, 2, 1, 1 - 1e-7, 1 - 1e-7);
     const flat = torusAt(R, r, 2, 1, 1, 1);
     for (let i = 0; i < 3; i++) expect(near[i]).toBeCloseTo(flat[i], 5);
+  });
+});
+
+describe('auto params', () => {
+  const design = (patch: Record<string, number | string>) => ({
+    version: 1 as const,
+    turns: 12,
+    samples: 20000,
+    blocks: [
+      createBlock('pendulum', { axis: 'x', amplitude: 0.5, freq: 3.01 }),
+      createBlock('pendulum', { axis: 'y', amplitude: 1, freq: 5.02, phase: 40 }),
+      createBlock('wrapTorus', { R: 0.9, r: 0.25 }),
+      createBlock('torusPatch', patch),
+    ],
+  });
+
+  it("reads a patch's auto radii from the torus above it", () => {
+    const auto = evaluate(design({ R: 'auto', r: 'auto' }));
+    const pinned = evaluate(design({ R: 0.9, r: 0.25 }));
+    expect(Array.from(auto.positions.slice(0, 300))).toEqual(Array.from(pinned.positions.slice(0, 300)));
+  });
+
+  it("makes an auto patch as wide as the frame it is evaluated for", () => {
+    const c = evaluate(design({ aspect: 'auto', u0: -180, u1: 180, v0: -180, v1: 180 }), { aspect: 20 });
+    let x = 0;
+    for (let i = 0; i < c.count; i++) if (Number.isFinite(c.positions[i * 3])) x = Math.max(x, Math.abs(c.positions[i * 3]));
+    expect(x).toBeGreaterThan(9);
+    expect(x).toBeLessThanOrEqual(10);
+  });
+
+  it('keeps auto through sanitizing, and picks more samples for a longer curve', () => {
+    const saved = sanitizeDesign({ ...design({ R: 'auto' }), samples: 'auto' });
+    expect(saved?.samples).toBe('auto');
+    expect(saved?.blocks[3].params.R).toBe('auto');
+    const short = sampleCount({ ...design({}), turns: 1, samples: 'auto' });
+    const long = sampleCount({ ...design({}), turns: 12, samples: 'auto' });
+    expect(long).toBeGreaterThan(short);
   });
 });

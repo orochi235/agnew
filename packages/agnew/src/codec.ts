@@ -1,6 +1,6 @@
 import { BLOCK_KINDS } from './blocks.js';
 import { type Block, type Design, newBlockId } from './design.js';
-import { defaultParams, type ParamValue } from './params.js';
+import { AUTO, defaultParams, type ParamValue } from './params.js';
 
 const kinds = new Map(BLOCK_KINDS.map((k) => [k.kind, k]));
 
@@ -38,6 +38,7 @@ export function sanitizeDesign(value: unknown): Design | null {
       const v = given[spec.key];
       const ok =
         (spec.type === 'number' && typeof v === 'number' && Number.isFinite(v)) ||
+        (spec.type === 'number' && spec.auto === true && v === AUTO) ||
         (spec.type === 'boolean' && typeof v === 'boolean') ||
         (spec.type === 'choice' && typeof v === 'string' && spec.options.includes(v));
       if (ok) params[spec.key] = v as ParamValue;
@@ -50,7 +51,7 @@ export function sanitizeDesign(value: unknown): Design | null {
     version: 1,
     blocks,
     turns: num(value.turns, 1, 0.01, 1000),
-    samples: Math.round(num(value.samples, 8000, 2, 1_000_000)),
+    samples: value.samples === AUTO ? AUTO : Math.round(num(value.samples, 8000, 2, 1_000_000)),
   };
 }
 

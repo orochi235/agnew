@@ -1,5 +1,5 @@
-import { ControlPanel } from '@weasel-js/labkit';
-import { BLOCK_KINDS, type Block, blockKind, createBlock, type Design } from 'agnew';
+import { ControlPanel, isAuto } from '@weasel-js/labkit';
+import { AUTO, BLOCK_KINDS, type Block, blockKind, createBlock, type Design } from 'agnew';
 import { useState } from 'react';
 import { cachedParamSchema } from './schema';
 
@@ -64,7 +64,8 @@ export function StackEditor({ design, onChange }: Props) {
               <ControlPanel
                 schema={cachedParamSchema(b.kind, kind.params)}
                 config={b.params}
-                setConfig={(path, value) => update(b.id, { params: { ...b.params, [path]: value as never } })}
+                setConfig={(path, value) => update(b.id, { params: { ...b.params, [path]: (isAuto(value) ? AUTO : value) as never } })}
+                auto={new Set(Object.keys(b.params).filter((k) => b.params[k] === AUTO))}
                 density="tight"
               />
             )}

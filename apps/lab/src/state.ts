@@ -1,4 +1,4 @@
-import { type Design, decode, encode, PRESETS, portableDesign, sanitizeDesign } from 'agnew';
+import { AUTO, type Design, decode, encode, PRESETS, portableDesign, sanitizeDesign } from 'agnew';
 import { DEFAULT_VIEW, FIT_MODES, SHAPE_NAMES, STYLES, type ViewSettings } from 'agnew/three';
 
 export interface LabState {
@@ -43,6 +43,9 @@ function readHash(): LabState | null {
   }
 }
 
+/** View settings that may be `'auto'`. */
+const AUTO_VIEW_KEYS: readonly (keyof ViewSettings)[] = ['lineWidth', 'lineOpacity', 'bloom', 'azimuth', 'elevation'];
+
 function sanitizeView(v: unknown): ViewSettings {
   const out: ViewSettings = { ...DEFAULT_VIEW, layers: { ...DEFAULT_VIEW.layers } };
   if (typeof v !== 'object' || v === null) return out;
@@ -57,7 +60,7 @@ function sanitizeView(v: unknown): ViewSettings {
           if (typeof b === 'boolean') out.layers[l] = b;
         }
       }
-    } else if (typeof got === typeof def) {
+    } else if (AUTO_VIEW_KEYS.includes(key) ? got === AUTO || (typeof got === 'number' && Number.isFinite(got)) : typeof got === typeof def) {
       (out as unknown as Record<string, unknown>)[key] = got;
     }
   }

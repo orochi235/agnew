@@ -94,6 +94,7 @@ the view turns auto-rotate off so a chosen angle stays put.
 
 The lab saves presets (design plus look) by name in the browser, where they
 join the preset dropdown, or as `.agnew.json` files to keep or share.
+`presets/` holds files worth keeping; open one with **Load file**.
 
 In the neon style, lines add light where they cross, so the view dims a curve
 that is long relative to its size.

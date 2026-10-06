@@ -191,7 +191,7 @@ step('traces at a steady speed, so a longer curve takes longer', async () => {
       [{ curve: true, trace: false, mechanism: false }, 1200],
       [{ curve: false, trace: true, mechanism: false }, 3000],
     ]) {
-      const view = { ...DEFAULT_VIEW, autoRotate: false, bloom: 0, traceSpeed: 4, layers };
+      const view = { ...DEFAULT_VIEW, autoRotate: false, bloom: 0, lineWidth: 1.6, lineOpacity: 0.55, traceSpeed: 4, layers };
       await page.goto('about:blank');
       await page.goto(`${values.url}/#s=${encode({ preset: name, design, view })}`);
       await page.waitForTimeout(wait);

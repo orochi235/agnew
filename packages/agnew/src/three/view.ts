@@ -44,7 +44,10 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { arcLengths, indexAtLength } from '../arclength.js';
+import type { EvalContext } from '../blocks.js';
 import { type Curve, type Design, evaluate, evaluateAt, timeSpan } from '../design.js';
+import { AUTO, type Auto } from '../params.js';
+import { autoBloom, autoLineOpacity, autoLineWidth, coverage } from './auto.js';
 import { buildRibbon, buildTube, decimate, dropGaps, gapSegments, type SweptGeometry } from './geometry.js';
 import {
   angleOf,
@@ -71,11 +74,11 @@ export interface ViewSettings {
   /** A key of `PALETTES`. */
   palette: string;
   background: string;
-  /** Line width in CSS pixels (neon, ink). */
-  lineWidth: number;
+  /** Line width in CSS pixels (neon, ink), or `'auto'` to suit the frame. */
+  lineWidth: number | Auto;
   /** Line opacity. In neon it is additive and scaled down for dense curves
    *  (long relative to their size), so a harmonograph's core does not burn out. */
-  lineOpacity: number;
+  lineOpacity: number | Auto;
   /** Tube radius as a fraction of the curve's radius. */
   tubeRadius: number;
   /** Ribbon width as a fraction of the curve's radius. */
@@ -83,7 +86,7 @@ export interface ViewSettings {
   /** Full turns of the ribbon's face along the whole curve. */
   ribbonTwist: number;
   /** Bloom strength; 0 turns the pass off. */
-  bloom: number;
+  bloom: number | Auto;
   layers: { curve: boolean; trace: boolean; mechanism: boolean };
   /** How far the pen travels per second, in multiples of the curve's radius.
    *  The pen moves at this speed along the line, so a longer, more complex
@@ -92,11 +95,12 @@ export interface ViewSettings {
   autoRotate: boolean;
   /** How `fit()` frames the curve. */
   fit: FitMode;
-  /** Camera direction around the vertical, in degrees; 0 looks from +z. */
-  azimuth: number;
+  /** Camera direction around the vertical, in degrees; 0 looks from +z.
+   *  `'auto'` on either angle turns to whichever fills the frame most. */
+  azimuth: number | Auto;
   /** Camera height above the horizon, in degrees. At 0 with azimuth 0 the
    *  x axis runs straight across the frame. */
-  elevation: number;
+  elevation: number | Auto;
   /** The frame's shape, centered in the framed area; `free` fills it. */
   shape: Shape;
   /** The frame's width : height when `shape` is `custom`. */
@@ -108,22 +112,22 @@ export interface ViewSettings {
 
 /** What switching to a style should also change, so each one opens looking right. */
 export const STYLE_DEFAULTS: Readonly<Record<Style, Partial<ViewSettings>>> = {
-  neon: { palette: 'aurora', background: '#05060a', bloom: 0.9, lineWidth: 1.6, lineOpacity: 0.55 },
-  tube: { palette: 'brass', background: '#0e1016', bloom: 0.15 },
-  ink: { palette: 'ink', background: '#f3eee3', bloom: 0, lineWidth: 1.3, lineOpacity: 0.95 },
-  ribbon: { palette: 'ice', background: '#0c0a14', bloom: 0.2 },
+  neon: { palette: 'aurora', background: '#05060a', bloom: AUTO, lineWidth: AUTO, lineOpacity: AUTO },
+  tube: { palette: 'brass', background: '#0e1016', bloom: AUTO },
+  ink: { palette: 'ink', background: '#f3eee3', bloom: AUTO, lineWidth: AUTO, lineOpacity: AUTO },
+  ribbon: { palette: 'ice', background: '#0c0a14', bloom: AUTO },
 };
 
 export const DEFAULT_VIEW: ViewSettings = {
   style: 'neon',
   palette: 'aurora',
   background: '#05060a',
-  lineWidth: 1.6,
-  lineOpacity: 0.55,
+  lineWidth: AUTO,
+  lineOpacity: AUTO,
   tubeRadius: 0.012,
   ribbonWidth: 0.035,
   ribbonTwist: 40,
-  bloom: 0.9,
+  bloom: AUTO,
   layers: { curve: true, trace: false, mechanism: false },
   traceSpeed: 4,
   autoRotate: true,
@@ -231,7 +235,7 @@ export function createAgnewView(
 
   const scene = new Scene();
   const camera = new PerspectiveCamera(fovFor(1), 1, 0.01, 100);
-  camera.position.set(...directionFor(settings.azimuth, settings.elevation)).multiplyScalar(3.5);
+  camera.position.set(...directionFor(numberOr(settings.azimuth, 19), numberOr(settings.elevation, 15))).multiplyScalar(3.5);
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.autoRotateSpeed = 0.6;
@@ -253,7 +257,8 @@ export function createAgnewView(
   /** Turn the camera to the settings' angle around its target, keeping distance. */
   function aim() {
     const dist = camera.position.distanceTo(controls.target);
-    const d = directionFor(settings.azimuth, settings.elevation);
+    const a = angle();
+    const d = directionFor(a.azimuth, a.elevation);
     camera.position.copy(controls.target).add(new Vector3(...d).multiplyScalar(dist));
     camera.lookAt(controls.target);
   }
@@ -267,7 +272,7 @@ export function createAgnewView(
   const target = new WebGLRenderTarget(1, 1, { samples: 4, type: HalfFloatType });
   const composer = new EffectComposer(renderer, target);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new Vector2(1, 1), settings.bloom, 0.45, 0);
+  const bloom = new UnrealBloomPass(new Vector2(1, 1), numberOr(settings.bloom, 0.9), 0.45, 0);
   composer.addPass(bloom);
   const tileBloom = new ShaderPass(TILE_BLOOM_SHADER);
   tileBloom.enabled = false;
@@ -308,11 +313,74 @@ export function createAgnewView(
   let holdLeft = 0;
   let cum: Float64Array = new Float64Array(1);
   let area: Box | null = null;
+  let curveVersion = 0;
 
   /** The box the picture is composed for, in canvas CSS pixels. */
   function frameBox(): Box {
     const base = area ?? { x: 0, y: 0, width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) };
     return shapeBox(base, frameAspect(settings));
+  }
+
+  /** What blocks with `'auto'` params can see: the frame's proportions. */
+  function context(): EvalContext {
+    const f = frameBox();
+    return { aspect: f.width / f.height };
+  }
+
+  /** Line width, opacity and bloom with any `'auto'` worked out. */
+  function look(): { lineWidth: number; lineOpacity: number; bloom: number } {
+    const s = settings;
+    const frame = frameBox();
+    const lineWidth = s.lineWidth === AUTO ? autoLineWidth(frame) : s.lineWidth;
+    const cover = curve ? coverage(curve, frame, lineWidth) : 1;
+    const lineOpacity =
+      s.lineOpacity === AUTO
+        ? autoLineOpacity(s.style, cover)
+        : s.style === 'neon' && curve
+          ? s.lineOpacity * neonExposure(curve)
+          : s.lineOpacity;
+    const bloomStrength = s.bloom === AUTO ? autoBloom(s.style, cover) : s.bloom;
+    return { lineWidth, lineOpacity, bloom: bloomStrength };
+  }
+
+  let autoAngle: { key: string; value: { azimuth: number; elevation: number } } | null = null;
+  /** The camera angle, with an `'auto'` side turned to fill the frame. */
+  function angle(): { azimuth: number; elevation: number } {
+    const s = settings;
+    if (s.azimuth !== AUTO && s.elevation !== AUTO) return { azimuth: s.azimuth, elevation: s.elevation };
+    const f = frameBox();
+    const key = `${curveVersion}:${(f.width / f.height).toFixed(4)}:${stage.scale.toArray().join()}`;
+    if (autoAngle?.key !== key) autoAngle = { key, value: findBestAngle() };
+    const best = autoAngle.value;
+    return {
+      azimuth: s.azimuth === AUTO ? best.azimuth : s.azimuth,
+      elevation: s.elevation === AUTO ? best.elevation : s.elevation,
+    };
+  }
+
+  function findBestAngle(): { azimuth: number; elevation: number } {
+    if (!curve) return { azimuth: 19, elevation: 15 };
+    const k = stage.scale;
+    const positions = new Float32Array(curve.positions);
+    for (let i = 0; i < curve.count; i++) {
+      positions[i * 3] *= k.x;
+      positions[i * 3 + 1] *= k.y;
+      positions[i * 3 + 2] *= k.z;
+    }
+    const f = frameBox();
+    return bestAngle(positions, curve.count, f.width / f.height);
+  }
+
+  /** The frame's size or shape moved: anything worked out from it follows. */
+  function frameChanged() {
+    if (usesAuto()) dirty = true;
+  }
+
+  function usesAuto(): boolean {
+    const s = settings;
+    if (s.lineWidth === AUTO || s.lineOpacity === AUTO || s.bloom === AUTO) return true;
+    if (s.azimuth === AUTO || s.elevation === AUTO) return true;
+    return !!design?.blocks.some((b) => Object.values(b.params).includes(AUTO));
   }
 
   function applyStretch() {
@@ -343,7 +411,8 @@ export function createAgnewView(
     dirty = false;
     disposeBuilt();
     if (!design) return;
-    curve = evaluate(design);
+    curve = evaluate(design, context());
+    curveVersion += 1;
     applyStretch();
     cum = arcLengths(curve.positions, curve.count);
     traceS = Math.min(traceS, curve.length);
@@ -351,6 +420,7 @@ export function createAgnewView(
     const bothOn = s.layers.curve && s.layers.trace;
     const dimOpacity = 0.14;
 
+    const { lineWidth, lineOpacity } = look();
     if (s.style === 'neon' || s.style === 'ink') {
       const colors = gradientColors(curve.count, paletteStops(s.palette));
       const segs = gapSegments(curve.positions, colors, curve.count);
@@ -363,7 +433,7 @@ export function createAgnewView(
       const makeMat = (opacity: number) =>
         new LineMaterial({
           vertexColors: true,
-          linewidth: s.lineWidth,
+          linewidth: lineWidth,
           transparent: true,
           opacity,
           depthWrite: s.style === 'ink',
@@ -373,7 +443,7 @@ export function createAgnewView(
         });
       const fullGeom = makeGeom();
       const traceGeom = makeGeom();
-      const opacity = s.style === 'neon' ? s.lineOpacity * neonExposure(curve) : s.lineOpacity;
+      const opacity = lineOpacity;
       const fullMat = makeMat(bothOn ? opacity * dimOpacity * 2 : opacity);
       const traceMat = makeMat(opacity);
       const full = new LineSegments2(fullGeom, fullMat);
@@ -386,7 +456,7 @@ export function createAgnewView(
         materials: [fullMat, traceMat],
         geometries: [fullGeom, traceGeom],
         lineMaterials: [fullMat, traceMat],
-        baseWidths: [s.lineWidth, s.lineWidth],
+        baseWidths: [lineWidth, lineWidth],
         reveal: (u) => {
           traceGeom.instanceCount = countBelow(segs.order, Math.floor(u * segments));
         },
@@ -464,8 +534,9 @@ export function createAgnewView(
     const meshStyle = s.style === 'tube' || s.style === 'ribbon';
     scene.environment = meshStyle ? envMap : null;
     key.visible = meshStyle;
-    bloom.strength = s.bloom;
-    bloom.enabled = s.bloom > 0;
+    const strength = look().bloom;
+    bloom.strength = strength;
+    bloom.enabled = strength > 0;
     curveGroup.visible = s.layers.curve;
     traceGroup.visible = s.layers.trace;
     mechGroup.visible = s.layers.mechanism;
@@ -500,7 +571,7 @@ export function createAgnewView(
 
   function updateMechanism(t: number) {
     if (!design) return;
-    const m = evaluateAt(design, t);
+    const m = evaluateAt(design, t, context());
     const size = Math.max(curve?.radius ?? 1, 1e-3);
     pen.position.set(m.point[0], m.point[1], m.point[2]);
     pen.scale.setScalar(size * 0.09);
@@ -539,7 +610,13 @@ export function createAgnewView(
   }
 
   function renderFrame(dt: number) {
-    if (dirty) rebuild();
+    if (dirty) {
+      rebuild();
+      if (settings.azimuth === AUTO || settings.elevation === AUTO) {
+        aim();
+        fit();
+      }
+    }
     const s = settings;
     if (playing && (s.layers.trace || s.layers.mechanism)) {
       if (holdLeft > 0) {
@@ -648,7 +725,7 @@ export function createAgnewView(
   }
 
   function fit() {
-    const raw = curve ?? (design ? evaluate({ ...design, samples: 2000 }) : null);
+    const raw = curve ?? (design ? evaluate({ ...design, samples: 2000 }, context()) : null);
     const k = stage.scale;
     let c = raw;
     if (raw && (k.x !== 1 || k.y !== 1 || k.z !== 1)) {
@@ -706,6 +783,7 @@ export function createAgnewView(
       if (reshaped) {
         resize();
         applyStretch();
+        frameChanged();
       }
       if (settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation) aim();
       if (reshaped || ((settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation) && settings.fit === 'tight')) fit();
@@ -717,16 +795,7 @@ export function createAgnewView(
     },
     fit,
     bestAngle() {
-      if (!curve) return { azimuth: settings.azimuth, elevation: settings.elevation };
-      const k = stage.scale;
-      const positions = new Float32Array(curve.positions);
-      for (let i = 0; i < curve.count; i++) {
-        positions[i * 3] *= k.x;
-        positions[i * 3 + 1] *= k.y;
-        positions[i * 3 + 2] *= k.z;
-      }
-      const f = frameBox();
-      return bestAngle(positions, curve.count, f.width / f.height);
+      return findBestAngle();
     },
     fly(right, up, forward) {
       const size = Math.max(curve?.radius ?? 1, 1e-3) * Math.max(stage.scale.x, stage.scale.y, stage.scale.z);
@@ -745,9 +814,12 @@ export function createAgnewView(
       cameraHeld = false;
     },
     setFraming(box) {
+      const before = frameBox();
       area = box ? { x: box.x ?? 0, y: box.y ?? 0, width: box.width, height: box.height } : null;
       resize();
       applyStretch();
+      const after = frameBox();
+      if (before.width !== after.width || before.height !== after.height) frameChanged();
     },
     get playing() {
       return playing;
@@ -838,6 +910,10 @@ export function createAgnewView(
 
 /** Additive lines brighten with every overlap. Curves up to ~90 radii long
  *  look right at the set opacity; longer ones are dimmed toward it. */
+function numberOr(v: number | Auto, fallback: number): number {
+  return v === AUTO ? fallback : v;
+}
+
 /** How many of the ascending `order` are below `n`. */
 function countBelow(order: Uint32Array, n: number): number {
   let lo = 0;

@@ -3,6 +3,7 @@ export {
   BLOCK_KINDS,
   type BlockKind,
   blockKind,
+  type EvalContext,
   decay,
   pendulum,
   precess,
@@ -23,10 +24,13 @@ export {
   evaluateAt,
   type Mechanism,
   newBlockId,
+  sampleCount,
   timeSpan,
 } from './design.js';
 export { type Frames, parallelTransport } from './frames.js';
 export {
+  AUTO,
+  type Auto,
   type BooleanParam,
   type ChoiceParam,
   defaultParams,

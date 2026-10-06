@@ -1,5 +1,5 @@
-import { type ConfigOption, ControlPanel, f, LabShell, resolveConfigSchema, withValueAtPath } from '@weasel-js/labkit';
-import { type Design, PRESETS, presetByName } from 'agnew';
+import { type ConfigOption, ControlPanel, f, isAuto, LabShell, resolveConfigSchema, withValueAtPath } from '@weasel-js/labkit';
+import { AUTO, type Design, PRESETS, presetByName } from 'agnew';
 import { type AgnewView, cameraPresetsFor, createAgnewView, FIT_MODES, frameAspect, PALETTES, SHAPE_NAMES, type Shape, SHAPES, shapeBox, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parsePresetFile, presetFile, SAVED_PREFIX, useSavedPresets } from './saved';
@@ -14,7 +14,12 @@ const CUSTOM = 'custom';
 const curveSchema = resolveConfigSchema(
   f.schema({
     turns: f.number(1).range(0.25, 60).step(0.25).label('Turns').manual(),
-    samples: f.number(8000).range(500, 120000).step(500).label('Samples').manual(),
+    samples: f
+      .number(8000)
+      .range(500, 150000)
+      .step(500)
+      .label('Samples')
+      .describe('Click the label for auto: enough points that each segment is short beside the curve.'),
   }),
 );
 
@@ -25,9 +30,9 @@ const viewSchema = resolveConfigSchema(
     style: f.enum('neon', [...STYLES]).label('Style').manual(),
     palette: f.enum('aurora', Object.keys(PALETTES)).label('Palette').manual(),
     background: f.color('#05060a').label('Background').manual(),
-    bloom: f.number(0.9).range(0, 3).step(0.05).label('Bloom').manual(),
-    lineWidth: f.number(1.6).range(0.5, 6).step(0.1).label('Line width').suffix('px').manual().showIf(isStyle('neon', 'ink')),
-    lineOpacity: f.number(0.55).range(0.02, 1).step(0.01).label('Line opacity').manual().showIf(isStyle('neon', 'ink')),
+    bloom: f.number(0.9).range(0, 3).step(0.05).label('Bloom'),
+    lineWidth: f.number(1.6).range(0.5, 6).step(0.1).label('Line width').suffix('px').showIf(isStyle('neon', 'ink')),
+    lineOpacity: f.number(0.55).range(0.02, 1).step(0.01).label('Line opacity').showIf(isStyle('neon', 'ink')),
     tubeRadius: f.number(0.012).range(0.002, 0.06).step(0.001).label('Tube radius').manual().showIf(isStyle('tube')),
     ribbonWidth: f.number(0.035).range(0.005, 0.15).step(0.001).label('Ribbon width').manual().showIf(isStyle('ribbon')),
     ribbonTwist: f.number(40).range(0, 400).step(1).label('Ribbon twists').manual().showIf(isStyle('ribbon')),
@@ -75,7 +80,7 @@ const viewSchema = resolveConfigSchema(
       .label('Azimuth')
       .suffix('°')
       .describe('Camera direction around the vertical. 0 looks straight down the z axis.')
-      .manual(),
+      ,
     elevation: f
       .number(15)
       .range(-89, 89)
@@ -83,7 +88,7 @@ const viewSchema = resolveConfigSchema(
       .label('Elevation')
       .suffix('°')
       .describe('Camera height above the horizon. Azimuth 0 and any elevation keeps the x axis level.')
-      .manual(),
+      ,
     layers: f.group({
       curve: f.boolean(true).label('Curve').manual(),
       trace: f.boolean(false).label('Trace').manual(),
@@ -112,6 +117,11 @@ const presetLabel = (preset: string) => (preset.startsWith(SAVED_PREFIX) ? prese
 
 function fileStem(name: string) {
   return `agnew-${(name || 'custom').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+}
+
+/** The keys of `config` set to `'auto'`, for a panel to show as auto. */
+function autoKeys(config: Record<string, unknown>): ReadonlySet<string> {
+  return new Set(Object.keys(config).filter((k) => config[k] === AUTO));
 }
 
 /** Dims everything outside the frame's shape. Its geometry is live, so it
@@ -241,25 +251,18 @@ export function App() {
       setNote((e as Error).message);
     }
   };
-  const setView = (path: string, value: unknown) =>
+  const setView = (path: string, raw: unknown) =>
     setState((s) => {
+      const value = isAuto(raw) ? AUTO : raw;
       let view = withValueAtPath(s.view, path, value) as ViewSettings;
       if (path === 'style') view = { ...view, ...STYLE_DEFAULTS[value as Style] };
       const named = path === 'shape' ? SHAPES[value as Shape].ratio : null;
       if (named) view = { ...view, ratioW: named[0], ratioH: named[1] };
       if ((path === 'ratioW' || path === 'ratioH') && SHAPES[view.shape].ratio) view = { ...view, shape: 'custom' };
       if ((path === 'shape' && value !== 'free') || path === 'ratioW' || path === 'ratioH') {
-        view = { ...view, fit: 'tight', autoRotate: false };
-        requestAnimationFrame(fillFrame);
+        view = { ...view, fit: 'tight', autoRotate: false, azimuth: AUTO, elevation: AUTO };
       }
       return { ...s, view };
-    });
-
-  /** Turn to the angle that fills the frame most, once the new shape is laid out. */
-  const fillFrame = () =>
-    requestAnimationFrame(() => {
-      const angle = viewRef.current?.bestAngle();
-      if (angle) aimAt(angle.azimuth, angle.elevation);
     });
 
   const aimAt = (azimuth: number, elevation: number) => {
@@ -389,12 +392,20 @@ export function App() {
           </section>
           <section className="ag-section">
             <h2 className="ag-heading">Look</h2>
-            <ControlPanel schema={viewSchema} config={state.view as never} setConfig={setView} density="tight" />
+            <ControlPanel
+              schema={viewSchema}
+              config={state.view as never}
+              setConfig={setView}
+              auto={autoKeys(state.view as never)}
+              density="tight"
+            />
             <div className="ag-buttons">
-              <button type="button" onClick={() => {
-                setView('fit', 'tight');
-                fillFrame();
-              }}>
+              <button
+                type="button"
+                onClick={() =>
+                  setState((s) => ({ ...s, view: { ...s.view, fit: 'tight', autoRotate: false, azimuth: AUTO, elevation: AUTO } }))
+                }
+              >
                 Fill frame
               </button>
               {cameraPresetsFor(frameAspect(state.view)).map((c) => (
@@ -409,7 +420,8 @@ export function App() {
             <ControlPanel
               schema={curveSchema}
               config={{ turns: state.design.turns, samples: state.design.samples }}
-              setConfig={(path, v) => setDesign({ ...state.design, [path]: v as number })}
+              setConfig={(path, v) => setDesign({ ...state.design, [path]: isAuto(v) ? AUTO : (v as number) })}
+              auto={state.design.samples === AUTO ? new Set(['samples']) : new Set<string>()}
               density="tight"
             />
             <StackEditor design={state.design} onChange={setDesign} />

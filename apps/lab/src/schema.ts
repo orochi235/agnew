@@ -6,7 +6,8 @@ export function paramSchema(specs: readonly ParamSpec[]): ResolvedConfig {
   const shape: Record<string, ReturnType<typeof f.number> | ReturnType<typeof f.boolean> | ReturnType<typeof f.enum>> = {};
   for (const s of specs) {
     if (s.type === 'number') {
-      let node = f.number(s.default).range(s.min, s.max).step(s.step).label(s.label).manual();
+      let node = f.number(s.default).range(s.min, s.max).step(s.step).label(s.label);
+      if (!s.auto) node = node.manual();
       if (s.suffix) node = node.suffix(s.suffix);
       shape[s.key] = node;
     } else if (s.type === 'boolean') {

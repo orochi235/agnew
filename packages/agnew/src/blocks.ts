@@ -1,4 +1,4 @@
-import { choice, num, type ParamSpec, type ParamValues } from './params.js';
+import { autoNum, choice, num, type ParamSpec, type ParamValues } from './params.js';
 import { patchAt, torusAt } from './torus.js';
 import { rotateX, rotateY, rotateZ, type Vec3 } from './vec.js';
 
@@ -24,6 +24,16 @@ export interface BlockKind {
   linear?: boolean;
   /** Wireframe of the surface a wrap modifier projects onto, as polylines. */
   guide?(params: ParamValues): Vec3[][];
+  /** The value of a param set to `'auto'`, from what surrounds the block. */
+  autoParam?(key: string, context: EvalContext): number | undefined;
+}
+
+/** What a block can see when its params are worked out. */
+export interface EvalContext {
+  /** Width over height of the frame the curve will be drawn in. */
+  aspect?: number;
+  /** Radii of the nearest torus block above, resolved. */
+  torus?: { R: number; r: number };
 }
 
 const n = (p: ParamValues, k: string) => p[k] as number;
@@ -170,15 +180,23 @@ export const torusPatch: BlockKind = {
   label: 'Torus patch',
   role: 'modifier',
   params: [
-    num('R', 'Major radius', 0.72, 0.1, 2, 0.01),
-    num('r', 'Minor radius', 0.3, 0.02, 1.5, 0.01),
+    autoNum('R', 'Major radius', 0.72, 0.1, 2, 0.01),
+    autoNum('r', 'Minor radius', 0.3, 0.02, 1.5, 0.01),
     num('u0', 'Corner A around', -90, -360, 360, 1, '°'),
     num('v0', 'Corner A through', -180, -360, 360, 1, '°'),
     num('u1', 'Corner B around', 90, -360, 360, 1, '°'),
     num('v1', 'Corner B through', 180, -360, 360, 1, '°'),
     num('turn', 'Turn', 0, -180, 180, 1, '°'),
-    num('aspect', 'Width ÷ height', 8, 0.1, 60, 0.1),
+    autoNum('aspect', 'Width ÷ height', 8, 0.1, 60, 0.1),
   ],
+  /** The radii follow the torus the curve was laid on, and the shape the
+   *  frame it is drawn in. */
+  autoParam(key, context) {
+    if (key === 'R') return context.torus?.R;
+    if (key === 'r') return context.torus?.r;
+    if (key === 'aspect') return context.aspect;
+    return undefined;
+  },
   /** Reads the curve so far as lying on a torus with these radii, and lays
    *  the patch between the two corners flat; see `patchAt`. */
   apply(p, _t, q) {
