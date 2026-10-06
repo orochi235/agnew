@@ -2,6 +2,7 @@ import { type ConfigOption, ControlPanel, f, isAuto, LabShell, resolveConfigSche
 import { AUTO, type Design, PRESETS, presetByName } from 'agnew';
 import { type AgnewView, AUTO_ROTATE_LABELS, AUTO_ROTATES, cameraPresetsFor, COLOR_FILTERS, createAgnewView, FIT_MODES, frameAspect, PALETTES, SHAPE_NAMES, type Shape, SHAPES, shapeBox, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArtLoupe } from './ArtLoupe';
 import { parsePresetFile, presetFile, SAVED_PREFIX, useSavedPresets } from './saved';
 import { useFlyKeys } from './flyKeys';
 import { StackEditor } from './StackEditor';
@@ -167,6 +168,7 @@ export function App() {
   const [name, setName] = useState(() => (state.preset.startsWith(SAVED_PREFIX) ? presetLabel(state.preset) : ''));
   const [note, setNote] = useState('');
   const [playing, setPlaying] = useState(true);
+  const [loupe, setLoupe] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -346,6 +348,7 @@ export function App() {
             scrubbable={state.view.layers.trace || state.view.layers.mechanism}
           />
         </div>
+        <ArtLoupe canvasRef={canvasRef} on={loupe} />
         <aside className="ag-sidebar">
           <section className="ag-section">
             <ControlPanel
@@ -412,6 +415,15 @@ export function App() {
               </button>
               <button className="ag-btn" type="button" onClick={() => navigator.clipboard?.writeText(location.href)}>
                 Copy link
+              </button>
+              <button
+                className="ag-btn"
+                type="button"
+                aria-pressed={loupe}
+                title="A magnifier over the picture. Hold Alt to peek without it."
+                onClick={() => setLoupe((on) => !on)}
+              >
+                Loupe
               </button>
             </div>
           </section>

@@ -163,6 +163,11 @@ body {
   background: var(--wzl-surface-hover);
 }
 
+.ag-btn[aria-pressed='true'] {
+  border-color: var(--wzl-accent);
+  color: var(--wzl-accent);
+}
+
 .ag-btn:disabled {
   opacity: 0.4;
   cursor: default;
