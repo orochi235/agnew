@@ -1,0 +1,70 @@
+{
+  "agnew": 1,
+  "name": "Five lobe rosette, engraved",
+  "preset": "",
+  "design": {
+    "version": 1,
+    "turns": 30,
+    "samples": 140000,
+    "blocks": [
+      {
+        "kind": "arm",
+        "enabled": true,
+        "params": {
+          "radius": 0.5,
+          "freq": 1,
+          "phase": 0,
+          "tiltX": 0,
+          "tiltY": 0
+        }
+      },
+      {
+        "kind": "arm",
+        "enabled": true,
+        "params": {
+          "radius": 0.35,
+          "freq": -4.02,
+          "phase": 0,
+          "tiltX": 0,
+          "tiltY": 0
+        }
+      },
+      {
+        "kind": "arm",
+        "enabled": true,
+        "params": {
+          "radius": 0.1,
+          "freq": 61,
+          "phase": 0,
+          "tiltX": 0,
+          "tiltY": 0
+        }
+      }
+    ]
+  },
+  "view": {
+    "style": "ink",
+    "palette": "banknote",
+    "background": "#efe9d8",
+    "lineWidth": 0.55,
+    "lineOpacity": 0.7,
+    "tubeRadius": 0.012,
+    "ribbonWidth": 0.035,
+    "ribbonTwist": 40,
+    "bloom": 0,
+    "layers": {
+      "curve": true,
+      "trace": false,
+      "mechanism": false
+    },
+    "traceSpeed": 4,
+    "autoRotate": false,
+    "fit": "tight",
+    "azimuth": 0,
+    "elevation": 0,
+    "shape": "free",
+    "ratioW": 30,
+    "ratioH": 1,
+    "stretch": false
+  }
+}
