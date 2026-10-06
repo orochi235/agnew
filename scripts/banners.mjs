@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Curves stretched to fill rects of different shapes — a long top bar, a
-// header, a card, a sidebar — for backgrounds. Needs the lab dev server
+// header, a card, a sidebar — for backgrounds, and torus curves unrolled
+// into strips for the long ones. Needs the lab dev server
 // running and `npm run build -w agnew`. Each look is squashed with a scale
 // block toward the rect's aspect and framed with the view's tight fit, then
 // rendered at that rect's size in the lab's ?bare mode.
@@ -11,7 +12,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright-core';
-import { createBlock, encode, portableDesign, presetByName } from '../packages/agnew/dist/index.js';
+import { createBlock, encode, evaluate, portableDesign, presetByName } from '../packages/agnew/dist/index.js';
 import { DEFAULT_VIEW, STYLE_DEFAULTS } from '../packages/agnew/dist/three/index.js';
 
 const { values } = parseArgs({
@@ -31,16 +32,26 @@ const SHAPES = [
   { name: 'sidebar', width: 320, height: 1280 },
 ];
 
-/** Scale factors that bring a curve of roughly unit extent to `aspect`,
+/** Scale factors that bring `design`'s width-to-height ratio to `aspect`,
  *  within the scale block's ±3. Depth is squashed with the short side, or
  *  the oblique camera turns it back into height. */
-function stretch(aspect) {
-  if (aspect >= 1) {
-    const x = Math.min(3, Math.sqrt(aspect));
-    return { x, y: x / aspect, z: x / aspect };
+function stretch(design, aspect) {
+  const c = evaluate({ ...design, samples: Math.min(design.samples, 6000) });
+  const lo = [Infinity, Infinity];
+  const hi = [-Infinity, -Infinity];
+  for (let i = 0; i < c.count; i++) {
+    for (let k = 0; k < 2; k++) {
+      lo[k] = Math.min(lo[k], c.positions[i * 3 + k]);
+      hi[k] = Math.max(hi[k], c.positions[i * 3 + k]);
+    }
   }
-  const y = Math.min(3, 1 / Math.sqrt(aspect));
-  return { x: y * aspect, y, z: y * aspect };
+  const m = (aspect * (hi[1] - lo[1])) / Math.max(hi[0] - lo[0], 1e-6);
+  if (m >= 1) {
+    const x = Math.min(3, Math.sqrt(m));
+    return { x, y: x / m, z: x / m };
+  }
+  const y = Math.min(3, 1 / Math.sqrt(m));
+  return { x: y * m, y, z: y * m };
 }
 
 const design = (turns, samples, blocks) => ({
@@ -50,6 +61,17 @@ const design = (turns, samples, blocks) => ({
   blocks: blocks.map(([kind, params]) => createBlock(kind, params)),
 });
 const preset = (name) => presetByName(name).design();
+
+/** `d` with every torus block unrolled by `around` and `through`. */
+function unrolled(d, around, through) {
+  const blocks = d.blocks.map((b) =>
+    b.kind === 'torusKnot' || b.kind === 'wrapTorus' ? { ...b, params: { ...b.params, unrollU: around, unrollV: through } } : b,
+  );
+  return { ...d, blocks };
+}
+
+/** Shapes the unrolled strips go into; they are long by nature. */
+const STRIPS = ['topbar', 'long-topbar', 'header'];
 
 function view(style, patch = {}) {
   return { ...DEFAULT_VIEW, ...STYLE_DEFAULTS[style], style, autoRotate: false, fit: 'tight', ...patch, layers: DEFAULT_VIEW.layers };
@@ -92,10 +114,64 @@ const LOOKS = [
     design: design(1, 24000, [['torusKnot', { p: 4, q: 61, R: 0.72, r: 0.22 }]]),
     view: view('tube', { tubeRadius: 0.004, bloom: 0.1 }),
   },
+  {
+    name: 'Harmonograph on a torus, unrolled',
+    design: unrolled(preset('Harmonograph on a torus'), 1, 1),
+    view: view('neon', { lineOpacity: 0.3, bloom: 0.5 }),
+    shapes: STRIPS,
+  },
+  {
+    name: 'Harmonograph on a torus, half unrolled',
+    design: unrolled(preset('Harmonograph on a torus'), 0.6, 0),
+    view: view('neon', { palette: 'ember', lineOpacity: 0.25, bloom: 0.5 }),
+    shapes: STRIPS,
+  },
+  {
+    name: 'Orbiting spirograph, unrolled',
+    design: unrolled(preset('Orbiting spirograph'), 1, 1),
+    view: view('neon', { palette: 'ice', lineOpacity: 0.35, bloom: 0.5 }),
+    shapes: STRIPS,
+  },
+  {
+    name: 'Woven band, uncoiled',
+    design: unrolled(preset('Woven band'), 1, 0),
+    view: view('neon', { palette: 'ice', lineOpacity: 0.3, bloom: 0.5 }),
+    shapes: STRIPS,
+  },
+  {
+    name: 'Woven band, opened',
+    design: unrolled(preset('Woven band'), 0.5, 0),
+    view: view('ink', { lineOpacity: 0.35, lineWidth: 1 }),
+    shapes: STRIPS,
+  },
+  {
+    name: 'Torus knot, uncoiled',
+    design: unrolled(preset('Torus knot'), 1, 0),
+    view: view('neon', { lineOpacity: 0.35, bloom: 0.5 }),
+    shapes: STRIPS,
+  },
+  {
+    name: 'Moire drift, uncoiled',
+    design: unrolled(design(1, 30000, [['torusKnot', { p: 3, q: 101, R: 0.75, r: 0.25 }]]), 1, 0),
+    view: view('neon', { palette: 'aurora', lineOpacity: 0.25, bloom: 0.4, lineWidth: 1.1 }),
+    shapes: STRIPS,
+  },
+  {
+    name: 'Brass loom, uncoiled',
+    design: unrolled(design(1, 24000, [['torusKnot', { p: 4, q: 61, R: 0.72, r: 0.22 }]]), 1, 0),
+    view: view('tube', { tubeRadius: 0.004, bloom: 0.1 }),
+    shapes: STRIPS,
+  },
+  {
+    name: 'Nautilus, uncoiled',
+    design: unrolled(preset('Nautilus'), 1, 0),
+    view: view('neon', { palette: 'spectrum', lineOpacity: 0.2, bloom: 0.4 }),
+    shapes: STRIPS,
+  },
 ];
 
 const banners = SHAPES.flatMap((shape) =>
-  LOOKS.map((look) => ({
+  LOOKS.filter((look) => !look.shapes || look.shapes.includes(shape.name)).map((look) => ({
     name: `${shape.name}/${look.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
     shape,
     look,
@@ -114,11 +190,10 @@ for (const shape of SHAPES) {
   const page = await browser.newPage({ viewport: { width: shape.width, height: shape.height }, deviceScaleFactor: 2 });
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && !m.text().includes('favicon') && errors.push(m.text()));
-  const k = stretch(shape.width / shape.height);
   for (const b of mine) {
     i += 1;
     const d = b.look.design;
-    const design = { ...d, blocks: [...d.blocks, createBlock('scale', k)] };
+    const design = { ...d, blocks: [...d.blocks, createBlock('scale', stretch(d, shape.width / shape.height))] };
     const hash = encode({ preset: '', design: portableDesign(design), view: b.look.view });
     await page.goto('about:blank');
     await page.goto(`${values.url}/?bare#s=${hash}`);

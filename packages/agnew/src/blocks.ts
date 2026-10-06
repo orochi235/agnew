@@ -1,4 +1,5 @@
 import { choice, num, type ParamSpec, type ParamValues } from './params.js';
+import { torusAt } from './torus.js';
 import { rotateX, rotateY, rotateZ, type Vec3 } from './vec.js';
 
 const TAU = Math.PI * 2;
@@ -29,6 +30,10 @@ const n = (p: ParamValues, k: string) => p[k] as number;
 const axisRotate = (axis: string): ((v: Vec3, a: number) => Vec3) =>
   axis === 'x' ? rotateX : axis === 'y' ? rotateY : rotateZ;
 const unitAxis = (axis: string): Vec3 => (axis === 'x' ? [1, 0, 0] : axis === 'y' ? [0, 1, 0] : [0, 0, 1]);
+
+/** Straighten the torus's circles into a flat strip: 0 is the torus, 1 flat. */
+const unrollAround = num('unrollU', 'Unroll around', 0, 0, 1, 0.01);
+const unrollThrough = num('unrollV', 'Unroll through', 0, 0, 1, 0.01);
 
 export const arm: BlockKind = {
   kind: 'arm',
@@ -80,12 +85,14 @@ export const torusKnot: BlockKind = {
     num('R', 'Major radius', 0.7, 0, 2, 0.01),
     num('r', 'Minor radius', 0.3, 0, 1.5, 0.01),
     num('phase', 'Phase', 0, 0, 360, 1, '°'),
+    unrollAround,
+    unrollThrough,
   ],
   apply(p, t, q) {
     const u = n(q, 'p') * t;
     const v = n(q, 'q') * t + n(q, 'phase') * DEG;
-    const w = n(q, 'R') + n(q, 'r') * Math.cos(v);
-    return [p[0] + w * Math.cos(u), p[1] + w * Math.sin(u), p[2] + n(q, 'r') * Math.sin(v)];
+    const k = torusAt(n(q, 'R'), n(q, 'r'), u, v, n(q, 'unrollU'), n(q, 'unrollV'));
+    return [p[0] + k[0], p[1] + k[1], p[2] + k[2]];
   },
 };
 
@@ -122,11 +129,6 @@ export const wrapSphere: BlockKind = {
   },
 };
 
-function torusAt(R: number, r: number, u: number, v: number): Vec3 {
-  const w = R + r * Math.cos(v);
-  return [w * Math.cos(u), w * Math.sin(u), r * Math.sin(v)];
-}
-
 export const wrapTorus: BlockKind = {
   kind: 'wrapTorus',
   label: 'Wrap onto torus',
@@ -138,25 +140,26 @@ export const wrapTorus: BlockKind = {
     num('vScale', 'Y → through', 3.14, 0, 10, 0.01),
     num('uDrift', 'Drift around', 1, -20, 20, 0.01),
     num('vDrift', 'Drift through', 0, -20, 20, 0.01),
+    unrollAround,
+    unrollThrough,
   ],
   /** x and y become angles around and through the torus, each with an
    *  optional steady drift; z becomes altitude above the surface. */
   apply([x, y, z], t, q) {
     const u = x * n(q, 'uScale') + n(q, 'uDrift') * t;
     const v = y * n(q, 'vScale') + n(q, 'vDrift') * t;
-    return torusAt(n(q, 'R'), n(q, 'r') + z, u, v);
+    return torusAt(n(q, 'R'), n(q, 'r') + z, u, v, n(q, 'unrollU'), n(q, 'unrollV'));
   },
   guide(q) {
-    const R = n(q, 'R');
-    const r = n(q, 'r');
+    const at = (u: number, v: number) => torusAt(n(q, 'R'), n(q, 'r'), u, v, n(q, 'unrollU'), n(q, 'unrollV'));
     const lines: Vec3[][] = [];
     for (let k = 0; k < 24; k++) {
       const u = (k / 24) * TAU;
-      lines.push(Array.from({ length: 33 }, (_, i) => torusAt(R, r, u, (i / 32) * TAU)));
+      lines.push(Array.from({ length: 33 }, (_, i) => at(u, (i / 32) * TAU)));
     }
     for (let k = 0; k < 8; k++) {
       const v = (k / 8) * TAU;
-      lines.push(Array.from({ length: 97 }, (_, i) => torusAt(R, r, (i / 96) * TAU, v)));
+      lines.push(Array.from({ length: 97 }, (_, i) => at((i / 96) * TAU, v)));
     }
     return lines;
   },
