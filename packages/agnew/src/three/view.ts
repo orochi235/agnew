@@ -46,7 +46,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { arcLengths, indexAtLength } from '../arclength.js';
 import { type Curve, type Design, evaluate, evaluateAt, timeSpan } from '../design.js';
 import { buildRibbon, buildTube, decimate, type SweptGeometry } from './geometry.js';
-import { type FitMode, fovFor, halfTangents, orbitDistance, tightFraming } from './framing.js';
+import { angleOf, directionFor, type FitMode, fovFor, halfTangents, orbitDistance, tightFraming } from './framing.js';
 import { gradientColors, paletteStops } from './palette.js';
 
 export type Style = 'neon' | 'tube' | 'ink' | 'ribbon';
@@ -78,6 +78,11 @@ export interface ViewSettings {
   autoRotate: boolean;
   /** How `fit()` frames the curve. */
   fit: FitMode;
+  /** Camera direction around the vertical, in degrees; 0 looks from +z. */
+  azimuth: number;
+  /** Camera height above the horizon, in degrees. At 0 with azimuth 0 the
+   *  x axis runs straight across the frame. */
+  elevation: number;
 }
 
 /** What switching to a style should also change, so each one opens looking right. */
@@ -102,6 +107,8 @@ export const DEFAULT_VIEW: ViewSettings = {
   traceSpeed: 4,
   autoRotate: true,
   fit: 'orbit',
+  azimuth: 19,
+  elevation: 15,
 };
 
 export interface RecordOptions {
@@ -180,6 +187,8 @@ export function createAgnewView(
     settings?: Partial<ViewSettings>;
     /** Called when the user starts dragging the camera. */
     onUserOrbit?: () => void;
+    /** Called when a drag of the camera ends, with the angle it ended at. */
+    onCameraAngle?: (angle: { azimuth: number; elevation: number }) => void;
   } = {},
 ): AgnewView {
   let settings: ViewSettings = { ...DEFAULT_VIEW, ...init.settings, layers: { ...DEFAULT_VIEW.layers, ...init.settings?.layers } };
@@ -191,7 +200,7 @@ export function createAgnewView(
 
   const scene = new Scene();
   const camera = new PerspectiveCamera(fovFor(1), 1, 0.01, 100);
-  camera.position.set(1.1, 0.9, 3.2);
+  camera.position.set(...directionFor(settings.azimuth, settings.elevation)).multiplyScalar(3.5);
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.autoRotateSpeed = 0.6;
@@ -203,6 +212,20 @@ export function createAgnewView(
     cameraHeld = false;
     init.onUserOrbit?.();
   });
+  controls.addEventListener('end', () => {
+    const d = camera.position.clone().sub(controls.target);
+    const a = angleOf([d.x, d.y, d.z]);
+    const round = (x: number) => Math.round(x * 10) / 10;
+    init.onCameraAngle?.({ azimuth: round(a.azimuth), elevation: round(a.elevation) });
+  });
+
+  /** Turn the camera to the settings' angle around its target, keeping distance. */
+  function aim() {
+    const dist = camera.position.distanceTo(controls.target);
+    const d = directionFor(settings.azimuth, settings.elevation);
+    camera.position.copy(controls.target).add(new Vector3(...d).multiplyScalar(dist));
+    camera.lookAt(controls.target);
+  }
 
   const pmrem = new PMREMGenerator(renderer);
   const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -610,6 +633,10 @@ export function createAgnewView(
         settings.layers.curve !== prev.layers.curve ||
         settings.layers.trace !== prev.layers.trace;
       if (settings.layers.trace && !prev.layers.trace) traceS = 0;
+      if (settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation) {
+        aim();
+        if (settings.fit === 'tight') fit();
+      }
       if (needsRebuild) dirty = true;
       else applySettings();
     },

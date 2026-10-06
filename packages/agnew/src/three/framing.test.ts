@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Vec3 } from '../vec.js';
-import { fovFor, halfTangents, orbitDistance, tightFraming } from './framing.js';
+import { angleOf, directionFor, fovFor, halfTangents, orbitDistance, tightFraming } from './framing.js';
 
 const basis: { right: Vec3; up: Vec3; back: Vec3 } = { right: [1, 0, 0], up: [0, 1, 0], back: [0, 0, 1] };
 
@@ -58,5 +58,28 @@ describe('tightFraming', () => {
     expect(f.pan[0]).not.toBeCloseTo(0, 2);
     expect(e.left).toBeCloseTo(-e.right, 6);
     expect(e.right).toBeCloseTo(tx / 1.08, 4);
+  });
+});
+
+describe('directionFor', () => {
+  it('looks from +z at azimuth 0 and from +x at azimuth 90, level at elevation 0', () => {
+    const z = directionFor(0, 0);
+    const x = directionFor(90, 0);
+    expect(z[0]).toBeCloseTo(0, 12);
+    expect(z[2]).toBeCloseTo(1, 12);
+    expect(x[0]).toBeCloseTo(1, 12);
+    expect(x[1]).toBeCloseTo(0, 12);
+  });
+
+  it('round-trips through angleOf', () => {
+    for (const [az, el] of [[19, 15], [-120, 40], [170, -60], [0, 0]]) {
+      const a = angleOf(directionFor(az, el));
+      expect(a.azimuth).toBeCloseTo(az, 9);
+      expect(a.elevation).toBeCloseTo(el, 9);
+    }
+  });
+
+  it('stops short of straight up', () => {
+    expect(angleOf(directionFor(0, 90)).elevation).toBeCloseTo(89.5, 9);
   });
 });

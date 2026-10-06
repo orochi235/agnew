@@ -9,7 +9,7 @@
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright-core';
-import { encode, PRESETS, portableDesign } from '../packages/agnew/dist/index.js';
+import { decode, encode, PRESETS, portableDesign } from '../packages/agnew/dist/index.js';
 import { DEFAULT_VIEW } from '../packages/agnew/dist/three/index.js';
 
 const { values } = parseArgs({ options: { url: { type: 'string', default: 'http://localhost:5190' } } });
@@ -127,6 +127,35 @@ step('restores state from the URL', async () => {
   await page.waitForTimeout(1000);
   if ((await blockCards().count()) !== 4) fail('reload lost the stack');
   if (!(await page.locator('.ag-badge').isVisible())) fail('reload lost the custom state');
+});
+
+step('turns the camera from the Elevation slider, and a drag writes the angle back', async () => {
+  const angle = async () => {
+    const v = decode((await hash()).slice('#s='.length)).view;
+    return { azimuth: v.azimuth, elevation: v.elevation };
+  };
+  await page.getByRole('checkbox', { name: 'Auto-rotate' }).uncheck();
+  await page.waitForTimeout(800);
+  const start = await angle();
+  const before = await page.screenshot({ clip: await frameBox() });
+  const slider = page.getByRole('slider', { name: 'Elevation' });
+  await slider.focus();
+  for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(800);
+  if ((await angle()).elevation === start.elevation) fail('Elevation slider did not reach the URL');
+  const after = await page.screenshot({ clip: await frameBox() });
+  if (before.equals(after)) fail('Elevation slider did not move the camera');
+
+  const box = await frameBox();
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const turned = await angle();
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 120, cy, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(800);
+  if ((await angle()).azimuth === turned.azimuth) fail('dragging the view did not write its azimuth to the URL');
 });
 
 step('traces at a steady speed, so a longer curve takes longer', async () => {

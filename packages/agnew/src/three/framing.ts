@@ -91,3 +91,22 @@ export function tightFraming(
   const [yl, yh] = interval(ys, hi, fy);
   return { distance: hi, pan: [(xl + xh) / 2, (yl + yh) / 2] };
 }
+
+/** Unit direction from the target toward the camera, for an azimuth around
+ *  the vertical (0 looks from +z, 90 from +x) and an elevation above the
+ *  horizon, both in degrees. Elevation stops short of straight up or down,
+ *  where the camera's up direction is undefined. */
+export function directionFor(azimuth: number, elevation: number): Vec3 {
+  const a = (azimuth * Math.PI) / 180;
+  const e = (Math.max(-89.5, Math.min(89.5, elevation)) * Math.PI) / 180;
+  return [Math.cos(e) * Math.sin(a), Math.sin(e), Math.cos(e) * Math.cos(a)];
+}
+
+/** The azimuth and elevation, in degrees, of a direction toward the camera. */
+export function angleOf(d: Vec3): { azimuth: number; elevation: number } {
+  const len = Math.hypot(d[0], d[1], d[2]) || 1;
+  return {
+    azimuth: (Math.atan2(d[0], d[2]) * 180) / Math.PI,
+    elevation: (Math.asin(Math.max(-1, Math.min(1, d[1] / len))) * 180) / Math.PI,
+  };
+}

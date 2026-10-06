@@ -36,6 +36,22 @@ const viewSchema = resolveConfigSchema(
       .label('Fit')
       .describe('Orbit keeps the whole curve in view from any angle; tight fills the frame from this one.')
       .manual(),
+    azimuth: f
+      .number(19)
+      .range(-180, 180)
+      .step(0.5)
+      .label('Azimuth')
+      .suffix('°')
+      .describe('Camera direction around the vertical. 0 looks straight down the z axis.')
+      .manual(),
+    elevation: f
+      .number(15)
+      .range(-89, 89)
+      .step(0.5)
+      .label('Elevation')
+      .suffix('°')
+      .describe('Camera height above the horizon. Azimuth 0 and any elevation keeps the x axis level.')
+      .manual(),
     layers: f.group({
       curve: f.boolean(true).label('Curve').manual(),
       trace: f.boolean(false).label('Trace').manual(),
@@ -89,6 +105,7 @@ export function App() {
       // A chosen angle should stay put.
       onUserOrbit: () =>
         setState((s) => (s.view.autoRotate ? { ...s, view: { ...s.view, autoRotate: false } } : s)),
+      onCameraAngle: (angle) => setState((s) => ({ ...s, view: { ...s.view, ...angle } })),
     });
     viewRef.current = view;
     requestAnimationFrame(() => view.fit());

@@ -74,7 +74,7 @@ function unrolled(d, around, through) {
 const STRIPS = ['topbar', 'long-topbar', 'header'];
 
 function view(style, patch = {}) {
-  return { ...DEFAULT_VIEW, ...STYLE_DEFAULTS[style], style, autoRotate: false, fit: 'tight', ...patch, layers: DEFAULT_VIEW.layers };
+  return { ...DEFAULT_VIEW, ...STYLE_DEFAULTS[style], style, autoRotate: false, fit: 'tight', azimuth: 0, ...patch, layers: DEFAULT_VIEW.layers };
 }
 
 const LOOKS = [
