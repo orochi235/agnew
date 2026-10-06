@@ -51,7 +51,7 @@ export const arm: BlockKind = {
   role: 'source',
   params: [
     num('radius', 'Radius', 0.5, 0, 2, 0.01),
-    num('freq', 'Frequency', 3, -40, 40, 1),
+    num('freq', 'Frequency', 3, -200, 200, 0.01),
     num('phase', 'Phase', 0, 0, 360, 1, '°'),
     num('tiltX', 'Tilt X', 0, -180, 180, 1, '°'),
     num('tiltY', 'Tilt Y', 0, -180, 180, 1, '°'),
@@ -71,7 +71,7 @@ export const pendulum: BlockKind = {
   params: [
     choice('axis', 'Axis', 'x', ['x', 'y', 'z']),
     num('amplitude', 'Amplitude', 0.6, 0, 2, 0.01),
-    num('freq', 'Frequency', 2, 0, 20, 0.001),
+    num('freq', 'Frequency', 2, 0, 1000, 0.001),
     num('phase', 'Phase', 0, 0, 360, 1, '°'),
     num('damping', 'Damping', 0, 0, 1, 0.001),
   ],

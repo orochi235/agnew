@@ -1,0 +1,87 @@
+{
+  "agnew": 1,
+  "name": "Torus patch spread",
+  "preset": "",
+  "design": {
+    "version": 1,
+    "turns": 12,
+    "samples": 40000,
+    "blocks": [
+      {
+        "kind": "pendulum",
+        "enabled": true,
+        "params": {
+          "axis": "x",
+          "amplitude": 0.5,
+          "freq": 3.01,
+          "phase": 0,
+          "damping": 0.02
+        }
+      },
+      {
+        "kind": "pendulum",
+        "enabled": true,
+        "params": {
+          "axis": "y",
+          "amplitude": 1,
+          "freq": 5.02,
+          "phase": 40,
+          "damping": 0.02
+        }
+      },
+      {
+        "kind": "wrapTorus",
+        "enabled": true,
+        "params": {
+          "R": 0.72,
+          "r": 0.3,
+          "uScale": 1,
+          "vScale": 3.14,
+          "uDrift": 1,
+          "vDrift": 0.137,
+          "unrollU": 0,
+          "unrollV": 0
+        }
+      },
+      {
+        "kind": "torusPatch",
+        "enabled": true,
+        "params": {
+          "R": 0.72,
+          "r": 0.3,
+          "u0": -60,
+          "v0": -180,
+          "u1": 60,
+          "v1": 180,
+          "turn": 20,
+          "aspect": 1.34
+        }
+      }
+    ]
+  },
+  "view": {
+    "style": "neon",
+    "palette": "grayscale",
+    "background": "#05060a",
+    "lineWidth": 2,
+    "lineOpacity": 0.55,
+    "tubeRadius": 0.012,
+    "ribbonWidth": 0.035,
+    "ribbonTwist": 40,
+    "bloom": 0.9,
+    "layers": {
+      "curve": true,
+      "trace": false,
+      "mechanism": false
+    },
+    "traceSpeed": 4,
+    "autoRotate": false,
+    "fit": "tight",
+    "azimuth": 0,
+    "elevation": 0,
+    "shape": "free",
+    "ratioW": 30,
+    "ratioH": 1,
+    "stretch": false
+  }
+}
