@@ -8,9 +8,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@weasel-js/core": "^1.5.2",
-    "@weasel-js/labkit": "^1.5.2",
-    "@weasel-js/theme": "^1.5.2",
+    "@weasel-js/core": "^1.8.0",
+    "@weasel-js/labkit": "^1.8.0",
+    "@weasel-js/theme": "^1.8.0",
     "agnew": "^0.0.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
