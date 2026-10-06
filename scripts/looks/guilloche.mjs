@@ -109,3 +109,43 @@ LOOKS.push(
   { name: 'Fine hatch, engraved', ...card, design: fineHatch, view: engraved({ lineWidth: 0.6 }) },
   { name: 'Sparse patch top bar, engraved', ...topbar, design: spreadPatch(8, 40000), view: engraved({ lineWidth: 0.7 }) },
 );
+
+/** Round three: borders and bands. */
+const header = { width: 1600, height: 400 };
+
+/** A small rosette drifting once across the frame as it draws: a chain. */
+const rosetteBand = design(40, 200000, [
+  ['arm', { radius: 0.5, freq: 1 }],
+  ['arm', { radius: 0.25, freq: -11.02 }],
+  ['arm', { radius: 0.05, freq: 67 }],
+  ['pendulum', { axis: 'x', amplitude: 3.2, freq: 0.0125, phase: 90 }],
+]);
+
+/** Two nearly equal fast frequencies: crossing families of diagonals, with
+ *  a fine wobble so the lines are engraved rather than ruled. */
+const crosshatch = design(6, 160000, [
+  ['pendulum', { axis: 'x', amplitude: 1, freq: 41, phase: 0 }],
+  ['pendulum', { axis: 'y', amplitude: 0.25, freq: 40.97, phase: 90 }],
+  ['pendulum', { axis: 'y', amplitude: 0.004, freq: 900, phase: 0 }],
+]);
+
+/** A wave carried on every sweep across, the whole drifting slowly up and
+ *  down: nested waves braided into a border. */
+const rope = design(20, 120000, [
+  ['pendulum', { axis: 'x', amplitude: 1, freq: 1, phase: 90 }],
+  ['pendulum', { axis: 'y', amplitude: 0.05, freq: 25, phase: 0 }],
+  ['pendulum', { axis: 'y', amplitude: 0.08, freq: 0.05, phase: 0 }],
+]);
+
+for (const [label, d, ink, light] of [
+  ['Rosette band', rosetteBand, { lineWidth: 0.55, lineOpacity: 0.7 }, { lineOpacity: 0.1, lineWidth: 0.8 }],
+  ['Crosshatch', crosshatch, { lineWidth: 0.55, lineOpacity: 0.7 }, { lineOpacity: 0.12, lineWidth: 0.8 }],
+  ['Rope border', rope, { lineWidth: 0.6, lineOpacity: 0.8 }, { lineOpacity: 0.15, lineWidth: 0.9 }],
+]) {
+  for (const [shape, size] of [['banner', banner], ['header', header]]) {
+    LOOKS.push(
+      { name: `${label} ${shape}, engraved`, ...size, design: d, view: engraved(ink) },
+      { name: `${label} ${shape}, glow`, ...size, design: d, view: glow(light) },
+    );
+  }
+}

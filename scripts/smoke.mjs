@@ -89,6 +89,19 @@ step('switches every style and still draws', async () => {
   }
 });
 
+step('draws through a hue shift and every color filter', async () => {
+  const filter = page.locator('select:has(option[value="sepia"])');
+  const hue = page.getByRole('slider', { name: 'Hue' });
+  await hue.focus();
+  for (let i = 0; i < 40; i++) await page.keyboard.press('ArrowRight');
+  for (const f of ['grayscale', 'sepia', 'invert', 'duotone', 'none']) {
+    await filter.selectOption(f);
+    await page.waitForTimeout(500);
+    if ((await inked()) < 0.01) fail(`${f}: canvas looks blank`);
+  }
+  for (let i = 0; i < 40; i++) await page.keyboard.press('ArrowLeft');
+});
+
 step('toggles trace and mechanism layers', async () => {
   await page.getByRole('checkbox', { name: 'Trace' }).check();
   await page.getByRole('checkbox', { name: 'Mechanism' }).check();

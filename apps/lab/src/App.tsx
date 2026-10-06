@@ -1,6 +1,6 @@
 import { type ConfigOption, ControlPanel, f, isAuto, LabShell, resolveConfigSchema, withValueAtPath } from '@weasel-js/labkit';
 import { AUTO, type Design, PRESETS, presetByName } from 'agnew';
-import { type AgnewView, cameraPresetsFor, createAgnewView, FIT_MODES, frameAspect, PALETTES, SHAPE_NAMES, type Shape, SHAPES, shapeBox, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
+import { type AgnewView, cameraPresetsFor, COLOR_FILTERS, createAgnewView, FIT_MODES, frameAspect, PALETTES, SHAPE_NAMES, type Shape, SHAPES, shapeBox, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parsePresetFile, presetFile, SAVED_PREFIX, useSavedPresets } from './saved';
 import { useFlyKeys } from './flyKeys';
@@ -36,6 +36,8 @@ const viewSchema = resolveConfigSchema(
     tubeRadius: f.number(0.012).range(0.002, 0.06).step(0.001).label('Tube radius').manual().showIf(isStyle('tube')),
     ribbonWidth: f.number(0.035).range(0.005, 0.15).step(0.001).label('Ribbon width').manual().showIf(isStyle('ribbon')),
     ribbonTwist: f.number(40).range(0, 400).step(1).label('Ribbon twists').manual().showIf(isStyle('ribbon')),
+    hue: f.number(0).range(-180, 180).step(1).label('Hue').suffix('°').manual(),
+    filter: f.enum('none', [...COLOR_FILTERS]).label('Filter').manual(),
     autoRotate: f.boolean(true).label('Auto-rotate').manual(),
     fit: f
       .enum('orbit', [...FIT_MODES])
@@ -123,6 +125,22 @@ function fileStem(name: string) {
 function autoKeys(config: Record<string, unknown>): ReadonlySet<string> {
   return new Set(Object.keys(config).filter((k) => config[k] === AUTO));
 }
+
+/**
+ * `config` with each `'auto'` replaced by a number, for a panel: labkit keeps
+ * a field's value apart from its auto flag and pins it back at that value,
+ * so it needs a number there. `fill` gives the number in use, where known.
+ */
+function withNumbers<T extends Record<string, unknown>>(config: T, fill: (key: string) => number | undefined): T {
+  const out: Record<string, unknown> = { ...config };
+  for (const k of Object.keys(out)) if (out[k] === AUTO) out[k] = fill(k);
+  return out as T;
+}
+
+const round = (v: number) => Math.round(v * 100) / 100;
+
+/** What an auto view setting pins to when the view has no number for it yet. */
+const DEFAULT_PINNED = { lineWidth: 1.6, lineOpacity: 0.55, bloom: 0.9, azimuth: 19, elevation: 15 };
 
 /** Dims everything outside the frame's shape. Its geometry is live, so it
  *  arrives as custom properties rather than a class. */
@@ -394,7 +412,12 @@ export function App() {
             <h2 className="ag-heading">Look</h2>
             <ControlPanel
               schema={viewSchema}
-              config={state.view as never}
+              config={
+                withNumbers(state.view as never, (k) => {
+                  const v = viewRef.current?.resolved()[k as 'bloom'];
+                  return v === undefined ? (DEFAULT_PINNED as Record<string, number>)[k] : round(v);
+                }) as never
+              }
               setConfig={setView}
               auto={autoKeys(state.view as never)}
               density="tight"
@@ -419,7 +442,7 @@ export function App() {
             <h2 className="ag-heading">Curve</h2>
             <ControlPanel
               schema={curveSchema}
-              config={{ turns: state.design.turns, samples: state.design.samples }}
+              config={{ turns: state.design.turns, samples: state.design.samples === AUTO ? 8000 : state.design.samples }}
               setConfig={(path, v) => setDesign({ ...state.design, [path]: isAuto(v) ? AUTO : (v as number) })}
               auto={state.design.samples === AUTO ? new Set(['samples']) : new Set<string>()}
               density="tight"

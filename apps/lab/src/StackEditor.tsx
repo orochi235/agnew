@@ -1,7 +1,15 @@
 import { ControlPanel, isAuto } from '@weasel-js/labkit';
-import { AUTO, BLOCK_KINDS, type Block, blockKind, createBlock, type Design } from 'agnew';
+import { AUTO, BLOCK_KINDS, type Block, blockKind, createBlock, type Design, type ParamSpec } from 'agnew';
 import { useState } from 'react';
 import { cachedParamSchema } from './schema';
+
+/** Params with each `'auto'` shown as the spec's default, which is what
+ *  labkit pins it back to. */
+function pinnable(params: Block['params'], specs: readonly ParamSpec[]): Block['params'] {
+  const out = { ...params };
+  for (const spec of specs) if (out[spec.key] === AUTO) out[spec.key] = spec.default;
+  return out;
+}
 
 interface Props {
   design: Design;
@@ -63,7 +71,7 @@ export function StackEditor({ design, onChange }: Props) {
             {b.enabled && (
               <ControlPanel
                 schema={cachedParamSchema(b.kind, kind.params)}
-                config={b.params}
+                config={pinnable(b.params, kind.params)}
                 setConfig={(path, value) => update(b.id, { params: { ...b.params, [path]: (isAuto(value) ? AUTO : value) as never } })}
                 auto={new Set(Object.keys(b.params).filter((k) => b.params[k] === AUTO))}
                 density="tight"

@@ -48,6 +48,7 @@ import type { EvalContext } from '../blocks.js';
 import { type Curve, type Design, evaluate, evaluateAt, timeSpan } from '../design.js';
 import { AUTO, type Auto } from '../params.js';
 import { autoBloom, autoLineOpacity, autoLineWidth, coverage } from './auto.js';
+import { COLOR_SHADER, type ColorFilter, filterIndex } from './color.js';
 import { buildRibbon, buildTube, decimate, dropGaps, gapSegments, type SweptGeometry } from './geometry.js';
 import {
   angleOf,
@@ -108,6 +109,10 @@ export interface ViewSettings {
   ratioH: number;
   /** Stretch the curve toward the shape's aspect before framing it. */
   stretch: boolean;
+  /** Hue rotation of the finished picture, in degrees. */
+  hue: number;
+  /** A color treatment of the finished picture; see `COLOR_FILTERS`. */
+  filter: ColorFilter;
 }
 
 /** What switching to a style should also change, so each one opens looking right. */
@@ -138,6 +143,8 @@ export const DEFAULT_VIEW: ViewSettings = {
   ratioW: 30,
   ratioH: 1,
   stretch: false,
+  hue: 0,
+  filter: 'none',
 };
 
 export interface RecordOptions {
@@ -159,6 +166,8 @@ export interface AgnewView {
   fly(right: number, up: number, forward: number): void;
   /** The camera angle that lets a tight fit fill the current frame most. */
   bestAngle(): { azimuth: number; elevation: number };
+  /** The settings that may be `'auto'`, as the numbers in use right now. */
+  resolved(): { lineWidth: number; lineOpacity: number; bloom: number; azimuth: number; elevation: number };
   restartTrace(): void;
   /** Whether the pen, the mechanism and auto-rotation are running. */
   playing: boolean;
@@ -278,6 +287,9 @@ export function createAgnewView(
   tileBloom.enabled = false;
   composer.addPass(tileBloom);
   composer.addPass(new OutputPass());
+  const colorPass = new ShaderPass(COLOR_SHADER);
+  colorPass.enabled = false;
+  composer.addPass(colorPass);
   const copyQuad = new FullScreenQuad(new ShaderMaterial(CopyShader));
 
   const curveGroup = new Group();
@@ -537,6 +549,11 @@ export function createAgnewView(
     const strength = look().bloom;
     bloom.strength = strength;
     bloom.enabled = strength > 0;
+    colorPass.enabled = s.hue !== 0 || s.filter !== 'none';
+    colorPass.uniforms.hue.value = (s.hue * Math.PI) / 180;
+    colorPass.uniforms.mode.value = filterIndex(s.filter);
+    colorPass.uniforms.dark.value = bg.toArray();
+    colorPass.uniforms.light.value = new Color(paletteStops(s.palette)[0]).toArray();
     curveGroup.visible = s.layers.curve;
     traceGroup.visible = s.layers.trace;
     mechGroup.visible = s.layers.mechanism;
@@ -796,6 +813,9 @@ export function createAgnewView(
     fit,
     bestAngle() {
       return findBestAngle();
+    },
+    resolved() {
+      return { ...look(), ...angle() };
     },
     fly(right, up, forward) {
       const size = Math.max(curve?.radius ?? 1, 1e-3) * Math.max(stage.scale.x, stage.scale.y, stage.scale.z);
