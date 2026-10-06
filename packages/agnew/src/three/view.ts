@@ -44,6 +44,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { arcLengths, indexAtLength } from '../arclength.js';
+import type { Vec3 } from '../vec.js';
 import type { EvalContext } from '../blocks.js';
 import { type Curve, type Design, evaluate, evaluateAt, timeSpan } from '../design.js';
 import { AUTO, type Auto } from '../params.js';
@@ -67,7 +68,7 @@ import {
   tightFraming,
 } from './framing.js';
 import { gradientColors, paletteStops } from './palette.js';
-import { type AutoRotate, spin, turnsCurve } from './rotation.js';
+import { type AutoRotate, type DragSample, type Fling, flingFrom, spin, turnsCurve } from './rotation.js';
 
 export type Style = 'neon' | 'tube' | 'ink' | 'ribbon';
 export const STYLES: readonly Style[] = ['neon', 'tube', 'ink', 'ribbon'];
@@ -254,11 +255,26 @@ export function createAgnewView(
   /** Paused and not yet touched: the camera holds still instead of coasting
    *  on damping, so pausing lands on the angle it was at. */
   let cameraHeld = false;
+  /** The turn the last drag threw, for `fling`, and the drag being watched for the next. */
+  let thrown: Fling | null = null;
+  let drag: DragSample[] | null = null;
+  const cameraDir = (): Vec3 => camera.position.clone().sub(controls.target).normalize().toArray();
   controls.addEventListener('start', () => {
     cameraHeld = false;
+    drag = [{ t: performance.now(), dir: cameraDir() }];
     init.onUserOrbit?.();
   });
+  controls.addEventListener('change', () => {
+    if (!drag) return;
+    const dir = cameraDir();
+    // Turning the camera catches a fling; a zoom or pan leaves it going.
+    if (dir.some((v, i) => Math.abs(v - drag![0].dir[i]) > 1e-6)) thrown = null;
+    drag.push({ t: performance.now(), dir });
+    if (drag.length > 32) drag.splice(1, 1);
+  });
   controls.addEventListener('end', () => {
+    if (drag && thrown === null) thrown = flingFrom(drag, performance.now());
+    drag = null;
     const d = camera.position.clone().sub(controls.target);
     const a = angleOf([d.x, d.y, d.z]);
     const round = (x: number) => Math.round(x * 10) / 10;
@@ -563,6 +579,8 @@ export function createAgnewView(
     traceGroup.visible = s.layers.trace;
     mechGroup.visible = s.layers.mechanism;
     controls.autoRotate = s.autoRotate === 'orbit' && playing;
+    // A fling hands the drag's motion to the curve; the camera coasting on as well would turn it twice.
+    controls.enableDamping = s.autoRotate !== 'fling';
     resize();
   }
 
@@ -661,7 +679,7 @@ export function createAgnewView(
       scene.fog.near = Math.max(0.01, d - curve.radius * 0.6);
       scene.fog.far = d + curve.radius * 4;
     }
-    if (playing) spin(spinner, s.autoRotate, dt);
+    if (playing) spin(spinner, s.autoRotate, dt, thrown);
     if (!cameraHeld) controls.update(dt);
     composer.render(dt);
   }
@@ -810,7 +828,10 @@ export function createAgnewView(
         frameChanged();
       }
       if (settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation) aim();
-      if (settings.autoRotate !== prev.autoRotate) spinner.rotation.set(0, 0, 0);
+      if (settings.autoRotate !== prev.autoRotate) {
+        spinner.rotation.set(0, 0, 0);
+        thrown = null;
+      }
       const spinChanged = turnsCurve(settings.autoRotate) !== turnsCurve(prev.autoRotate);
       if (reshaped || ((settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation || spinChanged) && settings.fit === 'tight')) fit();
       if (needsRebuild) dirty = true;

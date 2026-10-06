@@ -44,7 +44,7 @@ const viewSchema = resolveConfigSchema(
         AUTO_ROTATES.map((value) => ({ value, label: AUTO_ROTATE_LABELS[value] })),
       )
       .label('Auto-rotate')
-      .describe('Orbit swings the camera around the vertical; spin and tumble turn the curve itself.')
+      .describe('Orbit swings the camera around the vertical; spin and tumble turn the curve itself; fling keeps it turning the way you throw it with a drag.')
       .manual(),
     fit: f
       .enum('orbit', [...FIT_MODES])
