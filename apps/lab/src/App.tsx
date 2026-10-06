@@ -1,8 +1,9 @@
 import { type ConfigOption, ControlPanel, f, LabShell, resolveConfigSchema, withValueAtPath } from '@weasel-js/labkit';
 import { type Design, PRESETS, presetByName } from 'agnew';
-import { type AgnewView, createAgnewView, FIT_MODES, PALETTES, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type AgnewView, CAMERA_PRESETS, createAgnewView, FIT_MODES, PALETTES, SHAPE_NAMES, SHAPES, shapeBox, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parsePresetFile, presetFile, SAVED_PREFIX, useSavedPresets } from './saved';
+import { useFlyKeys } from './flyKeys';
 import { StackEditor } from './StackEditor';
 import { Transport } from './Transport';
 import { initialState, type LabState, writeHash } from './state';
@@ -36,6 +37,20 @@ const viewSchema = resolveConfigSchema(
       .label('Fit')
       .describe('Orbit keeps the whole curve in view from any angle; tight fills the frame from this one.')
       .manual(),
+    shape: f
+      .enum(
+        'free',
+        SHAPE_NAMES.map((value) => ({ value, label: SHAPES[value].label })),
+      )
+      .label('Shape')
+      .describe('Frame the picture as a rect of this shape, for a banner or a sidebar. Picking one also fits tightly and stretches.')
+      .manual(),
+    stretch: f
+      .boolean(false)
+      .label('Stretch to shape')
+      .describe("Scale the curve toward the shape's proportions so it fills the rect.")
+      .manual()
+      .showIf((c) => c.shape !== 'free'),
     azimuth: f
       .number(19)
       .range(-180, 180)
@@ -82,6 +97,13 @@ function fileStem(name: string) {
   return `agnew-${(name || 'custom').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 }
 
+/** Dims everything outside the frame's shape. Its geometry is live, so it
+ *  arrives as custom properties rather than a class. */
+function ShapeOutline({ box }: { box: { x: number; y: number; width: number; height: number } }) {
+  const vars = { '--x': `${box.x}px`, '--y': `${box.y}px`, '--w': `${box.width}px`, '--h': `${box.height}px` };
+  return <div className="ag-shape" style={vars as CSSProperties} />;
+}
+
 /** `?bare` is the canvas alone, for embedding the lab as a picture. */
 const BARE = new URLSearchParams(location.search).has('bare');
 
@@ -96,6 +118,7 @@ export function App() {
   const fileRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const [area, setArea] = useState({ width: 0, height: 0 });
   const viewRef = useRef<AgnewView | null>(null);
 
   useEffect(() => {
@@ -118,8 +141,10 @@ export function App() {
   useEffect(() => {
     const box = viewportRef.current;
     if (!box) return;
-    const apply = () =>
+    const apply = () => {
       viewRef.current?.setFraming(BARE ? null : { width: box.clientWidth, height: box.clientHeight });
+      setArea({ width: box.clientWidth, height: box.clientHeight });
+    };
     apply();
     const ro = new ResizeObserver(apply);
     ro.observe(box);
@@ -128,6 +153,11 @@ export function App() {
 
   useEffect(() => viewRef.current?.setDesign(state.design), [state.design]);
   useEffect(() => viewRef.current?.setSettings(state.view), [state.view]);
+  const stopRotating = useCallback(
+    () => setState((s) => (s.view.autoRotate ? { ...s, view: { ...s.view, autoRotate: false } } : s)),
+    [],
+  );
+  useFlyKeys(viewRef, stopRotating);
   useEffect(() => viewRef.current?.fit(), [state.view.fit]);
   useEffect(() => {
     if (viewRef.current) viewRef.current.playing = playing;
@@ -198,8 +228,14 @@ export function App() {
     setState((s) => {
       let view = withValueAtPath(s.view, path, value) as ViewSettings;
       if (path === 'style') view = { ...view, ...STYLE_DEFAULTS[value as Style] };
+      if (path === 'shape' && value !== 'free' && s.view.shape === 'free') view = { ...view, fit: 'tight', stretch: true };
       return { ...s, view };
     });
+
+  const aimAt = (azimuth: number, elevation: number) => {
+    setState((s) => ({ ...s, view: { ...s.view, azimuth, elevation, autoRotate: false } }));
+    refit();
+  };
 
   const exportPNG = async (scale: number) => {
     const blob = await viewRef.current?.exportPNG(scale);
@@ -243,6 +279,7 @@ export function App() {
       <div className="ag-layout">
         {canvas}
         <div className="ag-viewport" ref={viewportRef}>
+          {state.view.shape !== 'free' && <ShapeOutline box={shapeBox({ x: 0, y: 0, ...area }, state.view.shape)} />}
           {!state.preset && <div className="ag-badge">custom</div>}
           <Transport
             view={viewRef}
@@ -323,6 +360,13 @@ export function App() {
           <section className="ag-section">
             <h2 className="ag-heading">Look</h2>
             <ControlPanel schema={viewSchema} config={state.view as never} setConfig={setView} density="tight" />
+            <div className="ag-buttons">
+              {CAMERA_PRESETS[state.view.shape].map((c) => (
+                <button key={c.label} type="button" onClick={() => aimAt(c.azimuth, c.elevation)}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
           </section>
           <section className="ag-section">
             <h2 className="ag-heading">Curve</h2>

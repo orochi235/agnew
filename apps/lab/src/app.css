@@ -36,6 +36,17 @@ body {
   min-height: 0;
 }
 
+.ag-shape {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
+  outline: 1px dashed rgb(255 255 255 / 0.35);
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.55);
+  pointer-events: none;
+}
+
 .ag-canvas {
   pointer-events: auto;
   z-index: 0;

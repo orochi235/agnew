@@ -158,6 +158,28 @@ step('turns the camera from the Elevation slider, and a drag writes the angle ba
   if ((await angle()).azimuth === turned.azimuth) fail('dragging the view did not write its azimuth to the URL');
 });
 
+step('frames a shape, aims from a camera preset, and flies with the keyboard', async () => {
+  const shape = page.locator('select:has(option[value="banner"])');
+  await shape.selectOption('banner');
+  await page.waitForTimeout(800);
+  if (!(await page.locator('.ag-shape').isVisible())) fail('no outline for the banner shape');
+  const v = decode((await hash()).slice('#s='.length)).view;
+  if (v.shape !== 'banner' || v.fit !== 'tight' || !v.stretch) fail(`picking a shape left ${JSON.stringify(v)}`);
+  await page.getByRole('button', { name: 'Raking' }).click();
+  await page.waitForTimeout(800);
+  if (decode((await hash()).slice('#s='.length)).view.elevation !== 35) fail('Raking preset did not set the angle');
+  await page.locator('.ag-canvas').click({ position: { x: 5, y: 5 } });
+  const before = await page.screenshot({ clip: await frameBox() });
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(400);
+  await page.keyboard.up('KeyW');
+  await page.waitForTimeout(300);
+  const after = await page.screenshot({ clip: await frameBox() });
+  if (before.equals(after)) fail('holding W did not move the camera');
+  await shape.selectOption('free');
+  await page.waitForTimeout(500);
+});
+
 step('traces at a steady speed, so a longer curve takes longer', async () => {
   // Share of each curve drawn after the same time, measured as ink relative
   // to the whole curve; the harmonograph is about 4.6× longer than the knot.

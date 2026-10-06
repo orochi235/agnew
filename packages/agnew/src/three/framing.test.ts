@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { Vec3 } from '../vec.js';
-import { angleOf, directionFor, fovFor, halfTangents, orbitDistance, tightFraming } from './framing.js';
+import {
+  angleOf,
+  CAMERA_PRESETS,
+  directionFor,
+  fovFor,
+  halfTangents,
+  orbitDistance,
+  SHAPE_NAMES,
+  shapeBox,
+  stretchFor,
+  tightFraming,
+} from './framing.js';
 
 const basis: { right: Vec3; up: Vec3; back: Vec3 } = { right: [1, 0, 0], up: [0, 1, 0], back: [0, 0, 1] };
 
@@ -81,5 +92,44 @@ describe('directionFor', () => {
 
   it('stops short of straight up', () => {
     expect(angleOf(directionFor(0, 90)).elevation).toBeCloseTo(89.5, 9);
+  });
+});
+
+describe('shapeBox', () => {
+  const area = { x: 10, y: 20, width: 1000, height: 600 };
+
+  it('is the whole area when free', () => {
+    expect(shapeBox(area, 'free')).toEqual(area);
+  });
+
+  it('centers the widest box of the shape inside the area', () => {
+    expect(shapeBox(area, 'banner')).toEqual({ x: 10, y: 20 + (600 - 125) / 2, width: 1000, height: 125 });
+    const tall = shapeBox(area, 'sidebar');
+    expect(tall.height).toBe(600);
+    expect(tall.width).toBe(150);
+    expect(tall.x).toBe(10 + (1000 - 150) / 2);
+  });
+});
+
+describe('stretchFor', () => {
+  it("brings a square curve's ratio to the aspect, squashing depth with the short side", () => {
+    const square = new Float32Array([-1, -1, 0, 1, 1, 0]);
+    const [x, y, z] = stretchFor(square, 2, 8);
+    expect(x / y).toBeCloseTo(8, 9);
+    expect(z).toBe(y);
+  });
+
+  it('stays within the scale limits for extreme aspects', () => {
+    const square = new Float32Array([-1, -1, 0, 1, 1, 0]);
+    for (const k of stretchFor(square, 2, 30)) expect(Math.abs(k)).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('CAMERA_PRESETS', () => {
+  it('offers some for every shape, and the top bar keeps azimuth 0 so x stays level', () => {
+    for (const shape of SHAPE_NAMES) expect(CAMERA_PRESETS[shape].length).toBeGreaterThan(1);
+    for (const shape of ['topbar'] as const) {
+      for (const c of CAMERA_PRESETS[shape]) expect(c.azimuth).toBe(0);
+    }
   });
 });

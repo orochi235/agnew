@@ -110,3 +110,89 @@ export function angleOf(d: Vec3): { azimuth: number; elevation: number } {
     elevation: (Math.asin(Math.max(-1, Math.min(1, d[1] / len))) * 180) / Math.PI,
   };
 }
+
+/** Named frame shapes, by width-to-height ratio; `free` takes the whole area. */
+export type Shape = 'free' | 'topbar' | 'banner' | 'header' | 'card' | 'sidebar';
+export const SHAPES: Readonly<Record<Shape, { label: string; aspect: number | null }>> = {
+  free: { label: 'Free', aspect: null },
+  topbar: { label: 'Top bar 30:1', aspect: 30 },
+  banner: { label: 'Banner 8:1', aspect: 8 },
+  header: { label: 'Header 4:1', aspect: 4 },
+  card: { label: 'Card 2:1', aspect: 2 },
+  sidebar: { label: 'Sidebar 1:4', aspect: 0.25 },
+};
+export const SHAPE_NAMES = Object.keys(SHAPES) as Shape[];
+
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** The largest box of `shape`'s aspect centered in `area`, or `area` itself for `free`. */
+export function shapeBox(area: Box, shape: Shape): Box {
+  const aspect = SHAPES[shape]?.aspect;
+  if (!aspect) return area;
+  const width = Math.min(area.width, area.height * aspect);
+  const height = width / aspect;
+  return { x: area.x + (area.width - width) / 2, y: area.y + (area.height - height) / 2, width, height };
+}
+
+/**
+ * Per-axis scale that brings the curve's width-to-height ratio to `aspect`,
+ * within ±3 on any axis. Depth is squashed with the short side, or an
+ * oblique camera turns it back into height.
+ */
+export function stretchFor(positions: Float32Array, count: number, aspect: number): Vec3 {
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (let i = 0; i < count; i++) {
+    x0 = Math.min(x0, positions[i * 3]);
+    x1 = Math.max(x1, positions[i * 3]);
+    y0 = Math.min(y0, positions[i * 3 + 1]);
+    y1 = Math.max(y1, positions[i * 3 + 1]);
+  }
+  const m = (aspect * Math.max(y1 - y0, 1e-6)) / Math.max(x1 - x0, 1e-6);
+  if (m >= 1) {
+    const x = Math.min(3, Math.sqrt(m));
+    return [x, x / m, x / m];
+  }
+  const y = Math.min(3, 1 / Math.sqrt(m));
+  return [y * m, y, y * m];
+}
+
+export interface CameraPreset {
+  label: string;
+  azimuth: number;
+  elevation: number;
+}
+
+const THREE_QUARTER: CameraPreset = { label: 'Three-quarter', azimuth: 19, elevation: 15 };
+const FACE_ON: CameraPreset = { label: 'Face-on', azimuth: 0, elevation: 0 };
+
+/**
+ * Angles worth starting from in each shape. A wide frame keeps azimuth 0 so
+ * the x axis, which a stretch lengthens, stays level and only tilts toward or
+ * away; a tall one does the same for y by looking from the side.
+ */
+export const CAMERA_PRESETS: Readonly<Record<Shape, readonly CameraPreset[]>> = {
+  free: [
+    THREE_QUARTER,
+    FACE_ON,
+    { label: 'Top down', azimuth: 0, elevation: 80 },
+    { label: 'Side', azimuth: 90, elevation: 10 },
+  ],
+  topbar: [FACE_ON, { label: 'Raking', azimuth: 0, elevation: 25 }, { label: 'Grazing', azimuth: 0, elevation: 60 }],
+  banner: [FACE_ON, { label: 'Raking', azimuth: 0, elevation: 35 }, { label: 'Low sweep', azimuth: 0, elevation: -14 }, THREE_QUARTER],
+  header: [FACE_ON, { label: 'Raking', azimuth: 0, elevation: 35 }, { label: 'Low sweep', azimuth: 0, elevation: -18 }, THREE_QUARTER],
+  card: [THREE_QUARTER, FACE_ON, { label: 'Over the top', azimuth: 0, elevation: 55 }, { label: 'Side', azimuth: 90, elevation: 10 }],
+  sidebar: [
+    FACE_ON,
+    { label: 'Turned', azimuth: 35, elevation: 0 },
+    { label: 'Edge', azimuth: 75, elevation: 0 },
+    { label: 'From below', azimuth: 20, elevation: -25 },
+  ],
+};

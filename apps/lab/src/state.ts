@@ -1,5 +1,5 @@
 import { type Design, decode, encode, PRESETS, portableDesign, sanitizeDesign } from 'agnew';
-import { DEFAULT_VIEW, FIT_MODES, STYLES, type ViewSettings } from 'agnew/three';
+import { DEFAULT_VIEW, FIT_MODES, SHAPE_NAMES, STYLES, type ViewSettings } from 'agnew/three';
 
 export interface LabState {
   preset: string;
@@ -63,5 +63,6 @@ function sanitizeView(v: unknown): ViewSettings {
   }
   if (!STYLES.includes(out.style)) out.style = DEFAULT_VIEW.style;
   if (!FIT_MODES.includes(out.fit)) out.fit = DEFAULT_VIEW.fit;
+  if (!SHAPE_NAMES.includes(out.shape)) out.shape = DEFAULT_VIEW.shape;
   return out;
 }

@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-// Curves stretched to fill rects of different shapes — a long top bar, a
-// header, a card, a sidebar — for backgrounds, and torus curves unrolled
-// into strips for the long ones. Needs the lab dev server
-// running and `npm run build -w agnew`. Each look is squashed with a scale
-// block toward the rect's aspect and framed with the view's tight fit, then
-// rendered at that rect's size in the lab's ?bare mode.
+// Curves framed in rects of different shapes — a top bar, a banner, a header, a
+// card, a sidebar — for backgrounds, and torus curves unrolled into strips
+// for the long ones. Each is rendered at its rect's size in the lab's ?bare
+// mode with the view's shape, stretch, and tight fit. Needs the lab dev
+// server running and `npm run build -w agnew`.
 //
 //   node scripts/banners.mjs [--url http://localhost:5190] [--out banners] [--only <substring>]
 
@@ -12,7 +11,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright-core';
-import { createBlock, encode, evaluate, portableDesign, presetByName } from '../packages/agnew/dist/index.js';
+import { createBlock, encode, portableDesign, presetByName } from '../packages/agnew/dist/index.js';
 import { DEFAULT_VIEW, STYLE_DEFAULTS } from '../packages/agnew/dist/three/index.js';
 
 const { values } = parseArgs({
@@ -25,34 +24,12 @@ const { values } = parseArgs({
 
 /** Rect sizes in CSS pixels; device scale 2 doubles them. */
 const SHAPES = [
-  { name: 'topbar', width: 1920, height: 240 },
-  { name: 'long-topbar', width: 2560, height: 128 },
+  { name: 'topbar', width: 3000, height: 100 },
+  { name: 'banner', width: 1920, height: 240 },
   { name: 'header', width: 1600, height: 400 },
   { name: 'card', width: 1200, height: 600 },
   { name: 'sidebar', width: 320, height: 1280 },
 ];
-
-/** Scale factors that bring `design`'s width-to-height ratio to `aspect`,
- *  within the scale block's ±3. Depth is squashed with the short side, or
- *  the oblique camera turns it back into height. */
-function stretch(design, aspect) {
-  const c = evaluate({ ...design, samples: Math.min(design.samples, 6000) });
-  const lo = [Infinity, Infinity];
-  const hi = [-Infinity, -Infinity];
-  for (let i = 0; i < c.count; i++) {
-    for (let k = 0; k < 2; k++) {
-      lo[k] = Math.min(lo[k], c.positions[i * 3 + k]);
-      hi[k] = Math.max(hi[k], c.positions[i * 3 + k]);
-    }
-  }
-  const m = (aspect * (hi[1] - lo[1])) / Math.max(hi[0] - lo[0], 1e-6);
-  if (m >= 1) {
-    const x = Math.min(3, Math.sqrt(m));
-    return { x, y: x / m, z: x / m };
-  }
-  const y = Math.min(3, 1 / Math.sqrt(m));
-  return { x: y * m, y, z: y * m };
-}
 
 const design = (turns, samples, blocks) => ({
   version: 1,
@@ -71,7 +48,7 @@ function unrolled(d, around, through) {
 }
 
 /** Shapes the unrolled strips go into; they are long by nature. */
-const STRIPS = ['topbar', 'long-topbar', 'header'];
+const STRIPS = ['topbar', 'banner', 'header'];
 
 function view(style, patch = {}) {
   return { ...DEFAULT_VIEW, ...STYLE_DEFAULTS[style], style, autoRotate: false, fit: 'tight', azimuth: 0, ...patch, layers: DEFAULT_VIEW.layers };
@@ -192,9 +169,8 @@ for (const shape of SHAPES) {
   page.on('console', (m) => m.type() === 'error' && !m.text().includes('favicon') && errors.push(m.text()));
   for (const b of mine) {
     i += 1;
-    const d = b.look.design;
-    const design = { ...d, blocks: [...d.blocks, createBlock('scale', stretch(d, shape.width / shape.height))] };
-    const hash = encode({ preset: '', design: portableDesign(design), view: b.look.view });
+    const view = { ...b.look.view, shape: shape.name, stretch: true };
+    const hash = encode({ preset: '', design: portableDesign(b.look.design), view });
     await page.goto('about:blank');
     await page.goto(`${values.url}/?bare#s=${hash}`);
     await page.waitForSelector('.ag-canvas');

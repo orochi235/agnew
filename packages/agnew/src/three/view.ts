@@ -46,7 +46,20 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { arcLengths, indexAtLength } from '../arclength.js';
 import { type Curve, type Design, evaluate, evaluateAt, timeSpan } from '../design.js';
 import { buildRibbon, buildTube, decimate, type SweptGeometry } from './geometry.js';
-import { angleOf, directionFor, type FitMode, fovFor, halfTangents, orbitDistance, tightFraming } from './framing.js';
+import {
+  angleOf,
+  type Box,
+  directionFor,
+  type FitMode,
+  fovFor,
+  halfTangents,
+  orbitDistance,
+  type Shape,
+  SHAPES,
+  shapeBox,
+  stretchFor,
+  tightFraming,
+} from './framing.js';
 import { gradientColors, paletteStops } from './palette.js';
 
 export type Style = 'neon' | 'tube' | 'ink' | 'ribbon';
@@ -83,6 +96,10 @@ export interface ViewSettings {
   /** Camera height above the horizon, in degrees. At 0 with azimuth 0 the
    *  x axis runs straight across the frame. */
   elevation: number;
+  /** The frame's shape, centered in the framed area; `free` fills it. */
+  shape: Shape;
+  /** Stretch the curve toward the shape's aspect before framing it. */
+  stretch: boolean;
 }
 
 /** What switching to a style should also change, so each one opens looking right. */
@@ -109,6 +126,8 @@ export const DEFAULT_VIEW: ViewSettings = {
   fit: 'orbit',
   azimuth: 19,
   elevation: 15,
+  shape: 'free',
+  stretch: false,
 };
 
 export interface RecordOptions {
@@ -125,6 +144,9 @@ export interface AgnewView {
   readonly settings: ViewSettings;
   /** Move the camera so the whole curve is in view, keeping its direction. */
   fit(): void;
+  /** Fly the camera and its target together, in camera space: `right`, `up`
+   *  and `forward` are in multiples of the curve's radius. */
+  fly(right: number, up: number, forward: number): void;
   restartTrace(): void;
   /** Whether the pen, the mechanism and auto-rotation are running. */
   playing: boolean;
@@ -136,8 +158,9 @@ export interface AgnewView {
    * keeps the position and scale it had at that size and the canvas paints
    * past it — which is how art runs under a translucent panel without the
    * framing moving. Exports and recordings still cover the framed box only.
+   * The box is placed at `x`, `y` in the canvas, its top left by default.
    */
-  setFraming(box: { width: number; height: number } | null): void;
+  setFraming(box: { width: number; height: number; x?: number; y?: number } | null): void;
   /** A PNG of the current frame at `scale` times the on-screen resolution,
    *  rendered in tiles so large sizes work on any GPU. */
   exportPNG(scale?: number): Promise<Blob>;
@@ -247,11 +270,14 @@ export function createAgnewView(
   const curveGroup = new Group();
   const traceGroup = new Group();
   const mechGroup = new Group();
-  scene.add(curveGroup, traceGroup, mechGroup);
+  /** Everything drawn from the curve, so a stretch scales it all together. */
+  const stage = new Group();
+  scene.add(stage);
+  stage.add(curveGroup, traceGroup, mechGroup);
 
   const glow = glowTexture();
   const pen = new Sprite(new SpriteMaterial({ map: glow, depthWrite: false, blending: AdditiveBlending }));
-  scene.add(pen);
+  stage.add(pen);
 
   // Mechanism: arms as a line through the joints, dots at the joints, and a
   // wireframe of any wrap surface.
@@ -273,7 +299,19 @@ export function createAgnewView(
   let traceS = 0;
   let holdLeft = 0;
   let cum: Float64Array = new Float64Array(1);
-  let framing: { width: number; height: number } | null = null;
+  let area: Box | null = null;
+
+  /** The box the picture is composed for, in canvas CSS pixels. */
+  function frameBox(): Box {
+    const base = area ?? { x: 0, y: 0, width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) };
+    return shapeBox(base, settings.shape);
+  }
+
+  function applyStretch() {
+    const aspect = SHAPES[settings.shape]?.aspect;
+    if (settings.stretch && aspect && curve) stage.scale.set(...stretchFor(curve.positions, curve.count, aspect));
+    else stage.scale.set(1, 1, 1);
+  }
 
   interface Built {
     objects: Object3D[];
@@ -298,6 +336,7 @@ export function createAgnewView(
     disposeBuilt();
     if (!design) return;
     curve = evaluate(design);
+    applyStretch();
     cum = arcLengths(curve.positions, curve.count);
     traceS = Math.min(traceS, curve.length);
     const s = settings;
@@ -427,15 +466,14 @@ export function createAgnewView(
   function resize() {
     const w = Math.max(1, canvas.clientWidth);
     const h = Math.max(1, canvas.clientHeight);
-    const frame = framing ?? { width: w, height: h };
+    const frame = frameBox();
     renderer.setPixelRatio(basePixelRatio);
     renderer.setSize(w, h, false);
     composer.setPixelRatio(basePixelRatio);
     composer.setSize(w, h);
     camera.aspect = frame.width / frame.height;
     camera.fov = fovFor(camera.aspect);
-    if (framing) camera.setViewOffset(frame.width, frame.height, 0, 0, w, h);
-    else camera.clearViewOffset();
+    camera.setViewOffset(frame.width, frame.height, -frame.x, -frame.y, w, h);
     camera.updateProjectionMatrix();
     const res = new Vector2(w * basePixelRatio, h * basePixelRatio);
     if (built) {
@@ -528,8 +566,7 @@ export function createAgnewView(
    * shrink the glow.
    */
   function renderTiled(scale: number): HTMLCanvasElement {
-    const cw = Math.max(1, framing?.width ?? canvas.clientWidth);
-    const ch = Math.max(1, framing?.height ?? canvas.clientHeight);
+    const { width: cw, height: ch } = frameBox();
     let W = Math.round(cw * basePixelRatio * scale);
     let H = Math.round(ch * basePixelRatio * scale);
     const fitK = Math.min(1, Math.sqrt(MAX_EXPORT_PIXELS / (W * H)), MAX_EXPORT_SIDE / Math.max(W, H));
@@ -594,7 +631,18 @@ export function createAgnewView(
   }
 
   function fit() {
-    const c = curve ?? (design ? evaluate({ ...design, samples: 2000 }) : null);
+    const raw = curve ?? (design ? evaluate({ ...design, samples: 2000 }) : null);
+    const k = stage.scale;
+    let c = raw;
+    if (raw && (k.x !== 1 || k.y !== 1 || k.z !== 1)) {
+      const positions = new Float32Array(raw.positions);
+      for (let i = 0; i < raw.count; i++) {
+        positions[i * 3] *= k.x;
+        positions[i * 3 + 1] *= k.y;
+        positions[i * 3 + 2] *= k.z;
+      }
+      c = { ...raw, positions, radius: raw.radius * Math.max(k.x, k.y, k.z) };
+    }
     const [ty, tx] = halfTangents(camera.fov, camera.aspect);
     let dist = orbitDistance(Math.max(c?.radius ?? 1, 0.05), ty, tx);
     const target = new Vector3();
@@ -633,10 +681,13 @@ export function createAgnewView(
         settings.layers.curve !== prev.layers.curve ||
         settings.layers.trace !== prev.layers.trace;
       if (settings.layers.trace && !prev.layers.trace) traceS = 0;
-      if (settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation) {
-        aim();
-        if (settings.fit === 'tight') fit();
+      const reshaped = settings.shape !== prev.shape || settings.stretch !== prev.stretch;
+      if (reshaped) {
+        resize();
+        applyStretch();
       }
+      if (settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation) aim();
+      if (reshaped || ((settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation) && settings.fit === 'tight')) fit();
       if (needsRebuild) dirty = true;
       else applySettings();
     },
@@ -644,9 +695,26 @@ export function createAgnewView(
       return settings;
     },
     fit,
+    fly(right, up, forward) {
+      const size = Math.max(curve?.radius ?? 1, 1e-3) * Math.max(stage.scale.x, stage.scale.y, stage.scale.z);
+      const back = camera.position.clone().sub(controls.target).normalize();
+      const r = new Vector3(0, 1, 0).cross(back).normalize();
+      const u = back.clone().cross(r);
+      const step = r.multiplyScalar(right * size).add(u.multiplyScalar(up * size));
+      camera.position.add(step);
+      controls.target.add(step);
+      const dist = camera.position.distanceTo(controls.target);
+      const ahead = Math.min(forward * size, dist - size * 0.05);
+      camera.position.addScaledVector(back, -ahead);
+      camera.near = Math.max(1e-3, (dist - ahead) / 100);
+      camera.far = (dist - ahead) * 10 + size * 4;
+      camera.updateProjectionMatrix();
+      cameraHeld = false;
+    },
     setFraming(box) {
-      framing = box;
+      area = box ? { x: box.x ?? 0, y: box.y ?? 0, width: box.width, height: box.height } : null;
       resize();
+      applyStretch();
     },
     get playing() {
       return playing;
@@ -679,14 +747,17 @@ export function createAgnewView(
       // it rather than handing out the part nobody can see.
       let cropRaf = 0;
       let source: HTMLCanvasElement = canvas;
-      if (framing) {
+      const frame = frameBox();
+      if (frame.width < canvas.clientWidth || frame.height < canvas.clientHeight) {
         const crop = document.createElement('canvas');
-        crop.width = Math.round(framing.width * basePixelRatio);
-        crop.height = Math.round(framing.height * basePixelRatio);
+        crop.width = Math.round(frame.width * basePixelRatio);
+        crop.height = Math.round(frame.height * basePixelRatio);
+        const sx = Math.round(frame.x * basePixelRatio);
+        const sy = Math.round(frame.y * basePixelRatio);
         const g = crop.getContext('2d')!;
         const paint = () => {
           cropRaf = requestAnimationFrame(paint);
-          g.drawImage(canvas, 0, 0, crop.width, crop.height, 0, 0, crop.width, crop.height);
+          g.drawImage(canvas, sx, sy, crop.width, crop.height, 0, 0, crop.width, crop.height);
         };
         paint();
         source = crop;

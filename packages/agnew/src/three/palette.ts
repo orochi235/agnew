@@ -9,6 +9,7 @@ export const PALETTES: Readonly<Record<string, readonly string[]>> = {
   spectrum: ['#ef4444', '#f59e0b', '#84cc16', '#06b6d4', '#8b5cf6', '#ef4444'],
   ink: ['#1b1a2e', '#2b2342', '#1b1a2e'],
   mono: ['#ffffff', '#ffffff'],
+  grayscale: ['#ededed', '#9a9a9a', '#4d4d4d'],
 };
 
 export function paletteStops(name: string): readonly string[] {
