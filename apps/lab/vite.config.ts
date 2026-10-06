@@ -1,12 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { weaselCheckout } from './weasel.vite';
 
 export default defineConfig({
   // Relative, so the build works at any path: the Pages project site lives
   // under /agnew/.
   base: './',
-  plugins: [react()],
+  plugins: [react(), weaselCheckout()],
   resolve: {
     alias: {
       // Develop against the library source; the published package ships dist.
