@@ -1,5 +1,5 @@
 import { choice, num, type ParamSpec, type ParamValues } from './params.js';
-import { torusAt } from './torus.js';
+import { patchAt, torusAt } from './torus.js';
 import { rotateX, rotateY, rotateZ, type Vec3 } from './vec.js';
 
 const TAU = Math.PI * 2;
@@ -165,6 +165,27 @@ export const wrapTorus: BlockKind = {
   },
 };
 
+export const torusPatch: BlockKind = {
+  kind: 'torusPatch',
+  label: 'Torus patch',
+  role: 'modifier',
+  params: [
+    num('R', 'Major radius', 0.72, 0.1, 2, 0.01),
+    num('r', 'Minor radius', 0.3, 0.02, 1.5, 0.01),
+    num('u0', 'Corner A around', -90, -360, 360, 1, '°'),
+    num('v0', 'Corner A through', -180, -360, 360, 1, '°'),
+    num('u1', 'Corner B around', 90, -360, 360, 1, '°'),
+    num('v1', 'Corner B through', 180, -360, 360, 1, '°'),
+    num('turn', 'Turn', 0, -180, 180, 1, '°'),
+    num('aspect', 'Width ÷ height', 8, 0.1, 60, 0.1),
+  ],
+  /** Reads the curve so far as lying on a torus with these radii, and lays
+   *  the patch between the two corners flat; see `patchAt`. */
+  apply(p, _t, q) {
+    return patchAt(p, n(q, 'R'), n(q, 'r'), n(q, 'u0') * DEG, n(q, 'v0') * DEG, n(q, 'u1') * DEG, n(q, 'v1') * DEG, n(q, 'turn') * DEG, n(q, 'aspect'));
+  },
+};
+
 export const decay: BlockKind = {
   kind: 'decay',
   label: 'Decay',
@@ -212,6 +233,7 @@ export const BLOCK_KINDS: readonly BlockKind[] = [
   torusKnot,
   wrapSphere,
   wrapTorus,
+  torusPatch,
   decay,
   precess,
   scaleBlock,

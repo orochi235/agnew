@@ -61,7 +61,8 @@ function compile(design: Design): Step[] {
 export const timeSpan = (design: Design): number => design.turns * Math.PI * 2;
 
 export interface Curve {
-  /** xyz triples, `count` points. */
+  /** xyz triples, `count` points. A non-finite point is a gap: the line
+   *  breaks there, as where a patch cuts the curve off. */
   positions: Float32Array;
   count: number;
   /** Largest distance of any point from the origin. */
@@ -84,9 +85,11 @@ export function evaluate(design: Design): Curve {
     positions[i * 3] = p[0];
     positions[i * 3 + 1] = p[1];
     positions[i * 3 + 2] = p[2];
-    radius = Math.max(radius, Math.hypot(p[0], p[1], p[2]));
+    const r = Math.hypot(p[0], p[1], p[2]);
+    if (Number.isFinite(r)) radius = Math.max(radius, r);
     if (i > 0) {
-      length += Math.hypot(p[0] - positions[i * 3 - 3], p[1] - positions[i * 3 - 2], p[2] - positions[i * 3 - 1]);
+      const d = Math.hypot(p[0] - positions[i * 3 - 3], p[1] - positions[i * 3 - 2], p[2] - positions[i * 3 - 1]);
+      if (Number.isFinite(d)) length += d;
     }
   }
   return { positions, count, radius, length };

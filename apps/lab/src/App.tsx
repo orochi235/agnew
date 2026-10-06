@@ -1,6 +1,6 @@
 import { type ConfigOption, ControlPanel, f, LabShell, resolveConfigSchema, withValueAtPath } from '@weasel-js/labkit';
 import { type Design, PRESETS, presetByName } from 'agnew';
-import { type AgnewView, CAMERA_PRESETS, createAgnewView, FIT_MODES, PALETTES, SHAPE_NAMES, SHAPES, shapeBox, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
+import { type AgnewView, cameraPresetsFor, createAgnewView, FIT_MODES, frameAspect, PALETTES, SHAPE_NAMES, type Shape, SHAPES, shapeBox, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parsePresetFile, presetFile, SAVED_PREFIX, useSavedPresets } from './saved';
 import { useFlyKeys } from './flyKeys';
@@ -43,8 +43,25 @@ const viewSchema = resolveConfigSchema(
         SHAPE_NAMES.map((value) => ({ value, label: SHAPES[value].label })),
       )
       .label('Shape')
-      .describe('Frame the picture as a rect of this shape, for a banner or a sidebar. Picking one also fits tightly and stretches.')
+      .describe('Frame the picture as a rect of this shape, for a banner or a sidebar. Picking one zooms in and turns to the angle that fills it most.')
       .manual(),
+    ratioW: f
+      .number(30)
+      .range(1, 200)
+      .step(1)
+      .input()
+      .label('Width')
+      .describe('The frame is Width : Height. Typing one switches the shape to Custom.')
+      .manual()
+      .showIf((c) => c.shape !== 'free'),
+    ratioH: f
+      .number(1)
+      .range(1, 200)
+      .step(1)
+      .input()
+      .label('Height')
+      .manual()
+      .showIf((c) => c.shape !== 'free'),
     stretch: f
       .boolean(false)
       .label('Stretch to shape')
@@ -228,8 +245,21 @@ export function App() {
     setState((s) => {
       let view = withValueAtPath(s.view, path, value) as ViewSettings;
       if (path === 'style') view = { ...view, ...STYLE_DEFAULTS[value as Style] };
-      if (path === 'shape' && value !== 'free' && s.view.shape === 'free') view = { ...view, fit: 'tight', stretch: true };
+      const named = path === 'shape' ? SHAPES[value as Shape].ratio : null;
+      if (named) view = { ...view, ratioW: named[0], ratioH: named[1] };
+      if ((path === 'ratioW' || path === 'ratioH') && SHAPES[view.shape].ratio) view = { ...view, shape: 'custom' };
+      if ((path === 'shape' && value !== 'free') || path === 'ratioW' || path === 'ratioH') {
+        view = { ...view, fit: 'tight', autoRotate: false };
+        requestAnimationFrame(fillFrame);
+      }
       return { ...s, view };
+    });
+
+  /** Turn to the angle that fills the frame most, once the new shape is laid out. */
+  const fillFrame = () =>
+    requestAnimationFrame(() => {
+      const angle = viewRef.current?.bestAngle();
+      if (angle) aimAt(angle.azimuth, angle.elevation);
     });
 
   const aimAt = (azimuth: number, elevation: number) => {
@@ -279,7 +309,7 @@ export function App() {
       <div className="ag-layout">
         {canvas}
         <div className="ag-viewport" ref={viewportRef}>
-          {state.view.shape !== 'free' && <ShapeOutline box={shapeBox({ x: 0, y: 0, ...area }, state.view.shape)} />}
+          {frameAspect(state.view) && <ShapeOutline box={shapeBox({ x: 0, y: 0, ...area }, frameAspect(state.view))} />}
           {!state.preset && <div className="ag-badge">custom</div>}
           <Transport
             view={viewRef}
@@ -361,7 +391,13 @@ export function App() {
             <h2 className="ag-heading">Look</h2>
             <ControlPanel schema={viewSchema} config={state.view as never} setConfig={setView} density="tight" />
             <div className="ag-buttons">
-              {CAMERA_PRESETS[state.view.shape].map((c) => (
+              <button type="button" onClick={() => {
+                setView('fit', 'tight');
+                fillFrame();
+              }}>
+                Fill frame
+              </button>
+              {cameraPresetsFor(frameAspect(state.view)).map((c) => (
                 <button key={c.label} type="button" onClick={() => aimAt(c.azimuth, c.elevation)}>
                   {c.label}
                 </button>

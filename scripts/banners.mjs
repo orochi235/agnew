@@ -12,7 +12,9 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright-core';
 import { createBlock, encode, portableDesign, presetByName } from '../packages/agnew/dist/index.js';
-import { DEFAULT_VIEW, STYLE_DEFAULTS } from '../packages/agnew/dist/three/index.js';
+import { DEFAULT_VIEW, SHAPES, STYLE_DEFAULTS } from '../packages/agnew/dist/three/index.js';
+
+const SHAPE_RATIOS = Object.fromEntries(Object.entries(SHAPES).map(([k, v]) => [k, v.ratio ?? [1, 1]]));
 
 const { values } = parseArgs({
   options: {
@@ -169,7 +171,8 @@ for (const shape of SHAPES) {
   page.on('console', (m) => m.type() === 'error' && !m.text().includes('favicon') && errors.push(m.text()));
   for (const b of mine) {
     i += 1;
-    const view = { ...b.look.view, shape: shape.name, stretch: true };
+    const [ratioW, ratioH] = SHAPE_RATIOS[shape.name];
+    const view = { ...b.look.view, shape: shape.name, ratioW, ratioH, stretch: true };
     const hash = encode({ preset: '', design: portableDesign(b.look.design), view });
     await page.goto('about:blank');
     await page.goto(`${values.url}/?bare#s=${hash}`);

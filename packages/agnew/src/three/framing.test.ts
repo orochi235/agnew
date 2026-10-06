@@ -7,7 +7,8 @@ import {
   fovFor,
   halfTangents,
   orbitDistance,
-  SHAPE_NAMES,
+  cameraPresetsFor,
+  frameAspect,
   shapeBox,
   stretchFor,
   tightFraming,
@@ -99,12 +100,12 @@ describe('shapeBox', () => {
   const area = { x: 10, y: 20, width: 1000, height: 600 };
 
   it('is the whole area when free', () => {
-    expect(shapeBox(area, 'free')).toEqual(area);
+    expect(shapeBox(area, null)).toEqual(area);
   });
 
   it('centers the widest box of the shape inside the area', () => {
-    expect(shapeBox(area, 'banner')).toEqual({ x: 10, y: 20 + (600 - 125) / 2, width: 1000, height: 125 });
-    const tall = shapeBox(area, 'sidebar');
+    expect(shapeBox(area, 8)).toEqual({ x: 10, y: 20 + (600 - 125) / 2, width: 1000, height: 125 });
+    const tall = shapeBox(area, 0.25);
     expect(tall.height).toBe(600);
     expect(tall.width).toBe(150);
     expect(tall.x).toBe(10 + (1000 - 150) / 2);
@@ -127,9 +128,26 @@ describe('stretchFor', () => {
 
 describe('CAMERA_PRESETS', () => {
   it('offers some for every shape, and the top bar keeps azimuth 0 so x stays level', () => {
-    for (const shape of SHAPE_NAMES) expect(CAMERA_PRESETS[shape].length).toBeGreaterThan(1);
+    for (const shape of Object.keys(CAMERA_PRESETS) as (keyof typeof CAMERA_PRESETS)[]) {
+      expect(CAMERA_PRESETS[shape].length).toBeGreaterThan(1);
+    }
     for (const shape of ['topbar'] as const) {
       for (const c of CAMERA_PRESETS[shape]) expect(c.azimuth).toBe(0);
     }
+  });
+});
+
+describe('frameAspect', () => {
+  it('is null when free, the named ratio for a named shape, and the settings ratio when custom', () => {
+    expect(frameAspect({ shape: 'free', ratioW: 3, ratioH: 1 })).toBeNull();
+    expect(frameAspect({ shape: 'topbar', ratioW: 3, ratioH: 1 })).toBe(30);
+    expect(frameAspect({ shape: 'custom', ratioW: 12, ratioH: 5 })).toBe(2.4);
+    expect(frameAspect({ shape: 'custom', ratioW: 0, ratioH: 5 })).toBeNull();
+  });
+
+  it('picks camera presets from the nearest named shape', () => {
+    expect(cameraPresetsFor(25)).toBe(CAMERA_PRESETS.topbar);
+    expect(cameraPresetsFor(0.3)).toBe(CAMERA_PRESETS.sidebar);
+    expect(cameraPresetsFor(null)).toBe(CAMERA_PRESETS.free);
   });
 });

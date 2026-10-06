@@ -1,11 +1,12 @@
-/** Cumulative arc length at each point of a polyline of `count` xyz points. */
+/** Cumulative arc length at each point of a polyline of `count` xyz points.
+ *  A segment touching a non-finite point is a gap and adds nothing. */
 export function arcLengths(positions: Float32Array, count: number): Float64Array {
   const cum = new Float64Array(count);
   for (let i = 1; i < count; i++) {
     const a = (i - 1) * 3;
     const b = i * 3;
-    cum[i] =
-      cum[i - 1] + Math.hypot(positions[b] - positions[a], positions[b + 1] - positions[a + 1], positions[b + 2] - positions[a + 2]);
+    const d = Math.hypot(positions[b] - positions[a], positions[b + 1] - positions[a + 1], positions[b + 2] - positions[a + 2]);
+    cum[i] = cum[i - 1] + (Number.isFinite(d) ? d : 0);
   }
   return cum;
 }

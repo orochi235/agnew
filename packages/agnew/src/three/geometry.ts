@@ -124,3 +124,43 @@ export function decimate(positions: Float32Array, count: number, max: number): {
   }
   return { positions: out, count: max };
 }
+
+/**
+ * A polyline as separate segments, leaving out any that touch a non-finite
+ * point, so the line breaks at gaps. `order` holds each kept segment's index
+ * in the polyline, ascending, for revealing a prefix of it.
+ */
+export function gapSegments(
+  positions: Float32Array,
+  colors: Float32Array,
+  count: number,
+): { positions: Float32Array; colors: Float32Array; order: Uint32Array } {
+  const keep: number[] = [];
+  const ok = (i: number) =>
+    Number.isFinite(positions[i * 3]) && Number.isFinite(positions[i * 3 + 1]) && Number.isFinite(positions[i * 3 + 2]);
+  for (let i = 0; i + 1 < count; i++) if (ok(i) && ok(i + 1)) keep.push(i);
+  const pos = new Float32Array(keep.length * 6);
+  const col = new Float32Array(keep.length * 6);
+  keep.forEach((i, k) => {
+    pos.set(positions.subarray(i * 3, i * 3 + 6), k * 6);
+    col.set(colors.subarray(i * 3, i * 3 + 6), k * 6);
+  });
+  return { positions: pos, colors: col, order: Uint32Array.from(keep) };
+}
+
+/** The finite points of a polyline, in order; meshes bridge the gaps. */
+export function dropGaps(positions: Float32Array, count: number): { positions: Float32Array; count: number } {
+  const out = new Float32Array(count * 3);
+  let n = 0;
+  for (let i = 0; i < count; i++) {
+    const x = positions[i * 3];
+    const y = positions[i * 3 + 1];
+    const z = positions[i * 3 + 2];
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+    out[n * 3] = x;
+    out[n * 3 + 1] = y;
+    out[n * 3 + 2] = z;
+    n++;
+  }
+  return { positions: n === count ? positions : out.subarray(0, n * 3), count: n };
+}

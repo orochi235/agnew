@@ -164,7 +164,7 @@ step('frames a shape, aims from a camera preset, and flies with the keyboard', a
   await page.waitForTimeout(800);
   if (!(await page.locator('.ag-shape').isVisible())) fail('no outline for the banner shape');
   const v = decode((await hash()).slice('#s='.length)).view;
-  if (v.shape !== 'banner' || v.fit !== 'tight' || !v.stretch) fail(`picking a shape left ${JSON.stringify(v)}`);
+  if (v.shape !== 'banner' || v.fit !== 'tight' || v.stretch || v.ratioW !== 8) fail(`picking a shape left ${JSON.stringify(v)}`);
   await page.getByRole('button', { name: 'Raking' }).click();
   await page.waitForTimeout(800);
   if (decode((await hash()).slice('#s='.length)).view.elevation !== 35) fail('Raking preset did not set the angle');

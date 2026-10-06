@@ -55,12 +55,16 @@ export function tightFraming(
   const ys = new Float64Array(count);
   const zs = new Float64Array(count);
   let reach = 0;
+  let n = 0;
   for (let i = 0; i < count; i++) {
     const p: Vec3 = [positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]];
-    xs[i] = p[0] * right[0] + p[1] * right[1] + p[2] * right[2];
-    ys[i] = p[0] * up[0] + p[1] * up[1] + p[2] * up[2];
-    zs[i] = p[0] * back[0] + p[1] * back[1] + p[2] * back[2];
-    reach = Math.max(reach, Math.hypot(p[0], p[1], p[2]));
+    const r = Math.hypot(p[0], p[1], p[2]);
+    if (!Number.isFinite(r)) continue;
+    xs[n] = p[0] * right[0] + p[1] * right[1] + p[2] * right[2];
+    ys[n] = p[0] * up[0] + p[1] * up[1] + p[2] * up[2];
+    zs[n] = p[0] * back[0] + p[1] * back[1] + p[2] * back[2];
+    reach = Math.max(reach, r);
+    n++;
   }
   const fx = tx / MARGIN;
   const fy = ty / MARGIN;
@@ -68,7 +72,7 @@ export function tightFraming(
   const interval = (vs: Float64Array, d: number, t: number): [number, number] => {
     let lo = -Infinity;
     let hi = Infinity;
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < n; i++) {
       const half = (d - zs[i]) * t;
       lo = Math.max(lo, vs[i] - half);
       hi = Math.min(hi, vs[i] + half);
@@ -111,17 +115,26 @@ export function angleOf(d: Vec3): { azimuth: number; elevation: number } {
   };
 }
 
-/** Named frame shapes, by width-to-height ratio; `free` takes the whole area. */
-export type Shape = 'free' | 'topbar' | 'banner' | 'header' | 'card' | 'sidebar';
-export const SHAPES: Readonly<Record<Shape, { label: string; aspect: number | null }>> = {
-  free: { label: 'Free', aspect: null },
-  topbar: { label: 'Top bar 30:1', aspect: 30 },
-  banner: { label: 'Banner 8:1', aspect: 8 },
-  header: { label: 'Header 4:1', aspect: 4 },
-  card: { label: 'Card 2:1', aspect: 2 },
-  sidebar: { label: 'Sidebar 1:4', aspect: 0.25 },
+/** Named frame shapes, each a width : height ratio; `free` takes the whole
+ *  area and `custom` uses whatever ratio the settings hold. */
+export type Shape = 'free' | 'topbar' | 'banner' | 'header' | 'card' | 'sidebar' | 'custom';
+export const SHAPES: Readonly<Record<Shape, { label: string; ratio: readonly [number, number] | null }>> = {
+  free: { label: 'Free', ratio: null },
+  topbar: { label: 'Top bar 30:1', ratio: [30, 1] },
+  banner: { label: 'Banner 8:1', ratio: [8, 1] },
+  header: { label: 'Header 4:1', ratio: [4, 1] },
+  card: { label: 'Card 2:1', ratio: [2, 1] },
+  sidebar: { label: 'Sidebar 1:4', ratio: [1, 4] },
+  custom: { label: 'Custom', ratio: null },
 };
 export const SHAPE_NAMES = Object.keys(SHAPES) as Shape[];
+
+/** The frame's width-to-height ratio, or null when it takes the whole area. */
+export function frameAspect(s: { shape: Shape; ratioW: number; ratioH: number }): number | null {
+  if (s.shape === 'free') return null;
+  const ratio = SHAPES[s.shape]?.ratio ?? [s.ratioW, s.ratioH];
+  return ratio[0] > 0 && ratio[1] > 0 ? ratio[0] / ratio[1] : null;
+}
 
 export interface Box {
   x: number;
@@ -130,9 +143,8 @@ export interface Box {
   height: number;
 }
 
-/** The largest box of `shape`'s aspect centered in `area`, or `area` itself for `free`. */
-export function shapeBox(area: Box, shape: Shape): Box {
-  const aspect = SHAPES[shape]?.aspect;
+/** The largest box of `aspect` (width / height) centered in `area`, or `area` itself for null. */
+export function shapeBox(area: Box, aspect: number | null): Box {
   if (!aspect) return area;
   const width = Math.min(area.width, area.height * aspect);
   const height = width / aspect;
@@ -150,6 +162,7 @@ export function stretchFor(positions: Float32Array, count: number, aspect: numbe
   let y0 = Infinity;
   let y1 = -Infinity;
   for (let i = 0; i < count; i++) {
+    if (!Number.isFinite(positions[i * 3]) || !Number.isFinite(positions[i * 3 + 1])) continue;
     x0 = Math.min(x0, positions[i * 3]);
     x1 = Math.max(x1, positions[i * 3]);
     y0 = Math.min(y0, positions[i * 3 + 1]);
@@ -178,7 +191,7 @@ const FACE_ON: CameraPreset = { label: 'Face-on', azimuth: 0, elevation: 0 };
  * the x axis, which a stretch lengthens, stays level and only tilts toward or
  * away; a tall one does the same for y by looking from the side.
  */
-export const CAMERA_PRESETS: Readonly<Record<Shape, readonly CameraPreset[]>> = {
+export const CAMERA_PRESETS: Readonly<Record<Exclude<Shape, 'custom'>, readonly CameraPreset[]>> = {
   free: [
     THREE_QUARTER,
     FACE_ON,
@@ -196,3 +209,64 @@ export const CAMERA_PRESETS: Readonly<Record<Shape, readonly CameraPreset[]>> = 
     { label: 'From below', azimuth: 20, elevation: -25 },
   ],
 };
+
+/**
+ * The camera angle from which a tight fit gets closest to the curve, so it
+ * fills a frame of `aspect` the most: a grid search over azimuth and
+ * elevation, on a sample of at most `sample` points.
+ */
+export function bestAngle(
+  positions: Float32Array,
+  count: number,
+  aspect: number,
+  sample = 1500,
+): { azimuth: number; elevation: number } {
+  const stride = Math.max(1, Math.ceil(count / sample));
+  const pts: number[] = [];
+  for (let i = 0; i < count; i += stride) {
+    const x = positions[i * 3];
+    const y = positions[i * 3 + 1];
+    const z = positions[i * 3 + 2];
+    if (Number.isFinite(x + y + z)) pts.push(x, y, z);
+  }
+  const sampled = new Float32Array(pts);
+  const n = sampled.length / 3;
+  const [ty, tx] = halfTangents(fovFor(aspect), aspect);
+  let best = { azimuth: 0, elevation: 0, distance: Infinity };
+  for (let azimuth = -90; azimuth < 90; azimuth += 15) {
+    for (let elevation = -75; elevation <= 75; elevation += 15) {
+      const back = directionFor(azimuth, elevation);
+      const right = normalize([back[2], 0, -back[0]]);
+      const up: Vec3 = [
+        back[1] * right[2] - back[2] * right[1],
+        back[2] * right[0] - back[0] * right[2],
+        back[0] * right[1] - back[1] * right[0],
+      ];
+      const { distance } = tightFraming(sampled, n, { right, up, back }, ty, tx);
+      if (distance < best.distance - 1e-9) best = { azimuth, elevation, distance };
+    }
+  }
+  return { azimuth: best.azimuth, elevation: best.elevation };
+}
+
+function normalize(v: Vec3): Vec3 {
+  const l = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0] / l, v[1] / l, v[2] / l];
+}
+
+/** The camera presets of the named shape nearest in proportion to `aspect`. */
+export function cameraPresetsFor(aspect: number | null): readonly CameraPreset[] {
+  if (!aspect) return CAMERA_PRESETS.free;
+  let best: Exclude<Shape, 'custom'> = 'free';
+  let gap = Infinity;
+  for (const name of Object.keys(CAMERA_PRESETS) as Exclude<Shape, 'custom'>[]) {
+    const ratio = SHAPES[name].ratio;
+    if (!ratio) continue;
+    const g = Math.abs(Math.log(aspect) - Math.log(ratio[0] / ratio[1]));
+    if (g < gap) {
+      gap = g;
+      best = name;
+    }
+  }
+  return CAMERA_PRESETS[best];
+}

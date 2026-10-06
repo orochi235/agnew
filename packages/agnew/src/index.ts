@@ -8,6 +8,7 @@ export {
   precess,
   scaleBlock,
   torusKnot,
+  torusPatch,
   wrapSphere,
   wrapTorus,
 } from './blocks.js';

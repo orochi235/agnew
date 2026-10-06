@@ -33,8 +33,8 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { Line2 } from 'three/addons/lines/Line2.js';
-import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -45,17 +45,18 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { arcLengths, indexAtLength } from '../arclength.js';
 import { type Curve, type Design, evaluate, evaluateAt, timeSpan } from '../design.js';
-import { buildRibbon, buildTube, decimate, type SweptGeometry } from './geometry.js';
+import { buildRibbon, buildTube, decimate, dropGaps, gapSegments, type SweptGeometry } from './geometry.js';
 import {
   angleOf,
+  bestAngle,
   type Box,
   directionFor,
   type FitMode,
   fovFor,
   halfTangents,
   orbitDistance,
+  frameAspect,
   type Shape,
-  SHAPES,
   shapeBox,
   stretchFor,
   tightFraming,
@@ -98,6 +99,9 @@ export interface ViewSettings {
   elevation: number;
   /** The frame's shape, centered in the framed area; `free` fills it. */
   shape: Shape;
+  /** The frame's width : height when `shape` is `custom`. */
+  ratioW: number;
+  ratioH: number;
   /** Stretch the curve toward the shape's aspect before framing it. */
   stretch: boolean;
 }
@@ -127,6 +131,8 @@ export const DEFAULT_VIEW: ViewSettings = {
   azimuth: 19,
   elevation: 15,
   shape: 'free',
+  ratioW: 30,
+  ratioH: 1,
   stretch: false,
 };
 
@@ -147,6 +153,8 @@ export interface AgnewView {
   /** Fly the camera and its target together, in camera space: `right`, `up`
    *  and `forward` are in multiples of the curve's radius. */
   fly(right: number, up: number, forward: number): void;
+  /** The camera angle that lets a tight fit fill the current frame most. */
+  bestAngle(): { azimuth: number; elevation: number };
   restartTrace(): void;
   /** Whether the pen, the mechanism and auto-rotation are running. */
   playing: boolean;
@@ -304,11 +312,11 @@ export function createAgnewView(
   /** The box the picture is composed for, in canvas CSS pixels. */
   function frameBox(): Box {
     const base = area ?? { x: 0, y: 0, width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) };
-    return shapeBox(base, settings.shape);
+    return shapeBox(base, frameAspect(settings));
   }
 
   function applyStretch() {
-    const aspect = SHAPES[settings.shape]?.aspect;
+    const aspect = frameAspect(settings);
     if (settings.stretch && aspect && curve) stage.scale.set(...stretchFor(curve.positions, curve.count, aspect));
     else stage.scale.set(1, 1, 1);
   }
@@ -345,10 +353,11 @@ export function createAgnewView(
 
     if (s.style === 'neon' || s.style === 'ink') {
       const colors = gradientColors(curve.count, paletteStops(s.palette));
+      const segs = gapSegments(curve.positions, colors, curve.count);
       const makeGeom = () => {
-        const g = new LineGeometry();
-        g.setPositions(curve!.positions);
-        g.setColors(colors);
+        const g = new LineSegmentsGeometry();
+        g.setPositions(segs.positions);
+        g.setColors(segs.colors);
         return g;
       };
       const makeMat = (opacity: number) =>
@@ -367,8 +376,8 @@ export function createAgnewView(
       const opacity = s.style === 'neon' ? s.lineOpacity * neonExposure(curve) : s.lineOpacity;
       const fullMat = makeMat(bothOn ? opacity * dimOpacity * 2 : opacity);
       const traceMat = makeMat(opacity);
-      const full = new Line2(fullGeom, fullMat);
-      const trace = new Line2(traceGeom, traceMat);
+      const full = new LineSegments2(fullGeom, fullMat);
+      const trace = new LineSegments2(traceGeom, traceMat);
       curveGroup.add(full);
       traceGroup.add(trace);
       const segments = curve.count - 1;
@@ -379,11 +388,12 @@ export function createAgnewView(
         lineMaterials: [fullMat, traceMat],
         baseWidths: [s.lineWidth, s.lineWidth],
         reveal: (u) => {
-          traceGeom.instanceCount = Math.max(0, Math.floor(u * segments));
+          traceGeom.instanceCount = countBelow(segs.order, Math.floor(u * segments));
         },
       };
     } else {
-      const dec = decimate(curve.positions, curve.count, MAX_MESH_POINTS);
+      const solid = dropGaps(curve.positions, curve.count);
+      const dec = decimate(solid.positions, solid.count, MAX_MESH_POINTS);
       const colors = gradientColors(dec.count, paletteStops(s.palette));
       const size = Math.max(curve.radius, 1e-3);
       const swept: SweptGeometry =
@@ -495,7 +505,7 @@ export function createAgnewView(
     pen.position.set(m.point[0], m.point[1], m.point[2]);
     pen.scale.setScalar(size * 0.09);
     const s = settings;
-    pen.visible = s.layers.trace || s.layers.mechanism;
+    pen.visible = (s.layers.trace || s.layers.mechanism) && Number.isFinite(m.point[0] + m.point[1] + m.point[2]);
     if (!s.layers.mechanism) return;
     const joints = m.joints.slice(-MAX_JOINTS);
     const arr = armGeom.getAttribute('position') as BufferAttribute;
@@ -566,7 +576,11 @@ export function createAgnewView(
    * shrink the glow.
    */
   function renderTiled(scale: number): HTMLCanvasElement {
-    const { width: cw, height: ch } = frameBox();
+    const frame = frameBox();
+    const { width: cw, height: ch } = frame;
+    // The bloom is computed over the whole canvas; the frame is a part of it.
+    const canvasW = Math.max(1, canvas.clientWidth);
+    const canvasH = Math.max(1, canvas.clientHeight);
     let W = Math.round(cw * basePixelRatio * scale);
     let H = Math.round(ch * basePixelRatio * scale);
     const fitK = Math.min(1, Math.sqrt(MAX_EXPORT_PIXELS / (W * H)), MAX_EXPORT_SIDE / Math.max(W, H));
@@ -614,8 +628,11 @@ export function createAgnewView(
             });
           }
           dotMat.size = 6 * pxScale;
-          tileBloom.uniforms.offset.value.set(x / W, y / H);
-          tileBloom.uniforms.span.value.set(tw / W, th / H);
+          tileBloom.uniforms.offset.value.set(
+            (frame.x + (x / W) * frame.width) / canvasW,
+            (frame.y + (y / H) * frame.height) / canvasH,
+          );
+          tileBloom.uniforms.span.value.set(((tw / W) * frame.width) / canvasW, ((th / H) * frame.height) / canvasH);
           composer.render(0);
           g.drawImage(canvas, 0, 0, tw, th, x, y, tw, th);
         }
@@ -681,7 +698,11 @@ export function createAgnewView(
         settings.layers.curve !== prev.layers.curve ||
         settings.layers.trace !== prev.layers.trace;
       if (settings.layers.trace && !prev.layers.trace) traceS = 0;
-      const reshaped = settings.shape !== prev.shape || settings.stretch !== prev.stretch;
+      const reshaped =
+        settings.shape !== prev.shape ||
+        settings.stretch !== prev.stretch ||
+        settings.ratioW !== prev.ratioW ||
+        settings.ratioH !== prev.ratioH;
       if (reshaped) {
         resize();
         applyStretch();
@@ -695,6 +716,18 @@ export function createAgnewView(
       return settings;
     },
     fit,
+    bestAngle() {
+      if (!curve) return { azimuth: settings.azimuth, elevation: settings.elevation };
+      const k = stage.scale;
+      const positions = new Float32Array(curve.positions);
+      for (let i = 0; i < curve.count; i++) {
+        positions[i * 3] *= k.x;
+        positions[i * 3 + 1] *= k.y;
+        positions[i * 3 + 2] *= k.z;
+      }
+      const f = frameBox();
+      return bestAngle(positions, curve.count, f.width / f.height);
+    },
     fly(right, up, forward) {
       const size = Math.max(curve?.radius ?? 1, 1e-3) * Math.max(stage.scale.x, stage.scale.y, stage.scale.z);
       const back = camera.position.clone().sub(controls.target).normalize();
@@ -805,6 +838,18 @@ export function createAgnewView(
 
 /** Additive lines brighten with every overlap. Curves up to ~90 radii long
  *  look right at the set opacity; longer ones are dimmed toward it. */
+/** How many of the ascending `order` are below `n`. */
+function countBelow(order: Uint32Array, n: number): number {
+  let lo = 0;
+  let hi = order.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (order[mid] < n) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 function neonExposure(curve: Curve): number {
   const density = curve.length / Math.max(curve.radius, 1e-6);
   return Math.min(1, (90 / density) ** 0.7);

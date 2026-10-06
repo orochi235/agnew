@@ -1,5 +1,5 @@
 export { buildRibbon, buildTube, decimate, type SweptGeometry } from './geometry.js';
-export { type Box, CAMERA_PRESETS, type CameraPreset, FIT_MODES, type FitMode, SHAPE_NAMES, SHAPES, type Shape, shapeBox, stretchFor } from './framing.js';
+export { bestAngle, type Box, CAMERA_PRESETS, type CameraPreset, cameraPresetsFor, FIT_MODES, frameAspect, type FitMode, SHAPE_NAMES, SHAPES, type Shape, shapeBox, stretchFor } from './framing.js';
 export { gradientColors, PALETTES, paletteStops } from './palette.js';
 export {
   type AgnewView,
