@@ -1,0 +1,100 @@
+.ag-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wzl-space-2, 8px);
+  margin-top: var(--wzl-space-3, 12px);
+}
+
+.ag-stack__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wzl-space-2, 8px);
+}
+
+.ag-stack__list--dragging {
+  user-select: none;
+}
+
+.ag-card {
+  border: 1px solid var(--wzl-border);
+  border-radius: var(--wzl-radius-sm, 4px);
+  background: var(--wzl-surface-raised);
+  padding: var(--wzl-space-2, 8px);
+}
+
+.ag-card--off {
+  opacity: 0.55;
+}
+
+/* The card the drag picked up holds its place, faded, while its ghost follows the pointer. */
+.ag-card--dragging {
+  opacity: 0.4;
+}
+
+/* Where the drop would land: a line in the gap on that side of the card. */
+.ag-card--drop-before {
+  box-shadow: 0 -5px 0 -3px var(--wzl-accent);
+}
+
+.ag-card--drop-after {
+  box-shadow: 0 5px 0 -3px var(--wzl-accent);
+}
+
+.ag-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wzl-space-2, 8px);
+  margin-bottom: var(--wzl-space-1, 4px);
+}
+
+.ag-card__grip {
+  display: inline-flex;
+  color: var(--wzl-fg-muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.ag-card__title {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--wzl-font-size-sm, 12px);
+  font-weight: var(--wzl-font-weight-medium, 500);
+}
+
+.ag-card__actions {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.ag-card .ag-card__actions button {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+}
+
+.ag-tag {
+  padding: 0 6px;
+  border-radius: var(--wzl-radius-pill, 999px);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--wzl-fg-muted);
+  border: 1px solid var(--wzl-border);
+}
+
+.ag-tag--modifier {
+  color: var(--wzl-accent);
+  border-color: var(--wzl-accent);
+}
+
+.ag-add {
+  display: flex;
+  gap: var(--wzl-space-2, 8px);
+}
+
+.ag-add select {
+  flex: 1;
+}
