@@ -145,7 +145,7 @@ body {
   margin-top: var(--wzl-space-2, 8px);
 }
 
-.ag-sidebar button,
+.ag-btn,
 .ag-sidebar select,
 .ag-inline input {
   height: var(--wzl-control-h, 28px);
@@ -159,11 +159,11 @@ body {
   cursor: pointer;
 }
 
-.ag-sidebar button:hover:not(:disabled) {
+.ag-btn:hover:not(:disabled) {
   background: var(--wzl-surface-hover);
 }
 
-.ag-sidebar button:disabled {
+.ag-btn:disabled {
   opacity: 0.4;
   cursor: default;
 }

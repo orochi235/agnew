@@ -367,18 +367,18 @@ export function App() {
                 placeholder="Preset name"
                 aria-label="Preset name"
               />
-              <button type="submit">Save preset</button>
+              <button className="ag-btn" type="submit">Save preset</button>
               {state.preset.startsWith(SAVED_PREFIX) && (
-                <button type="button" onClick={deletePreset}>
+                <button className="ag-btn" type="button" onClick={deletePreset}>
                   Delete
                 </button>
               )}
             </form>
             <div className="ag-buttons">
-              <button type="button" onClick={saveFile}>
+              <button className="ag-btn" type="button" onClick={saveFile}>
                 Save file
               </button>
-              <button type="button" onClick={() => fileRef.current?.click()}>
+              <button className="ag-btn" type="button" onClick={() => fileRef.current?.click()}>
                 Load file
               </button>
               <input
@@ -398,10 +398,10 @@ export function App() {
               </p>
             )}
             <div className="ag-buttons">
-              <button type="button" onClick={() => viewRef.current?.fit()}>
+              <button className="ag-btn" type="button" onClick={() => viewRef.current?.fit()}>
                 Fit view
               </button>
-              <button
+              <button className="ag-btn"
                 type="button"
                 onClick={() => {
                   viewRef.current?.restartTrace();
@@ -410,7 +410,7 @@ export function App() {
               >
                 Replay
               </button>
-              <button type="button" onClick={() => navigator.clipboard?.writeText(location.href)}>
+              <button className="ag-btn" type="button" onClick={() => navigator.clipboard?.writeText(location.href)}>
                 Copy link
               </button>
             </div>
@@ -430,7 +430,7 @@ export function App() {
               density="tight"
             />
             <div className="ag-buttons">
-              <button
+              <button className="ag-btn"
                 type="button"
                 onClick={() =>
                   setState((s) => ({ ...s, view: { ...s.view, fit: 'tight', autoRotate: 'off', azimuth: AUTO, elevation: AUTO } }))
@@ -439,7 +439,7 @@ export function App() {
                 Fill frame
               </button>
               {cameraPresetsFor(frameAspect(state.view)).map((c) => (
-                <button key={c.label} type="button" onClick={() => aimAt(c.azimuth, c.elevation)}>
+                <button className="ag-btn" key={c.label} type="button" onClick={() => aimAt(c.azimuth, c.elevation)}>
                   {c.label}
                 </button>
               ))}
@@ -460,7 +460,7 @@ export function App() {
             <h2 className="ag-heading">Export</h2>
             <div className="ag-buttons">
               {[1, 2, 4].map((k) => (
-                <button key={k} type="button" onClick={() => exportPNG(k)}>
+                <button className="ag-btn" key={k} type="button" onClick={() => exportPNG(k)}>
                   PNG {k}×
                 </button>
               ))}
@@ -476,7 +476,7 @@ export function App() {
                 />
                 s
               </label>
-              <button type="button" onClick={record} disabled={recording}>
+              <button className="ag-btn" type="button" onClick={record} disabled={recording}>
                 {recording ? 'Recording…' : 'Record video'}
               </button>
             </div>

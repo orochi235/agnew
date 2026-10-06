@@ -61,10 +61,10 @@ export function StackEditor({ design, onChange }: Props) {
         </label>
         {!ghosted && (
           <span className="ag-card__actions">
-            <button type="button" onClick={() => drag.nudge(b.id, i, -1)} disabled={i === 0} aria-label="Move up">
+            <button className="ag-btn" type="button" onClick={() => drag.nudge(b.id, i, -1)} disabled={i === 0} aria-label="Move up">
               ↑
             </button>
-            <button
+            <button className="ag-btn"
               type="button"
               onClick={() => drag.nudge(b.id, i, 1)}
               disabled={i === design.blocks.length - 1}
@@ -72,7 +72,7 @@ export function StackEditor({ design, onChange }: Props) {
             >
               ↓
             </button>
-            <button
+            <button className="ag-btn"
               type="button"
               onClick={() => setBlocks(design.blocks.filter((x) => x.id !== b.id))}
               aria-label="Remove"
@@ -104,7 +104,7 @@ export function StackEditor({ design, onChange }: Props) {
             </option>
           ))}
         </select>
-        <button type="button" onClick={() => setBlocks([...design.blocks, createBlock(adding)])}>
+        <button className="ag-btn" type="button" onClick={() => setBlocks([...design.blocks, createBlock(adding)])}>
           Add block
         </button>
       </div>
