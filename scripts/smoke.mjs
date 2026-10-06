@@ -204,7 +204,7 @@ step('traces at a steady speed, so a longer curve takes longer', async () => {
       [{ curve: true, trace: false, mechanism: false }, 1200],
       [{ curve: false, trace: true, mechanism: false }, 3000],
     ]) {
-      const view = { ...DEFAULT_VIEW, autoRotate: false, bloom: 0, lineWidth: 1.6, lineOpacity: 0.55, traceSpeed: 4, layers };
+      const view = { ...DEFAULT_VIEW, autoRotate: 'off', bloom: 0, lineWidth: 1.6, lineOpacity: 0.55, traceSpeed: 4, layers };
       await page.goto('about:blank');
       await page.goto(`${values.url}/#s=${encode({ preset: name, design, view })}`);
       await page.waitForTimeout(wait);
@@ -218,7 +218,7 @@ step('traces at a steady speed, so a longer curve takes longer', async () => {
 
 step('pauses, scrubs, and stops auto-rotating once the view is grabbed', async () => {
   const design = portableDesign(PRESETS.find((x) => x.name === 'Gear train').design());
-  const view = { ...DEFAULT_VIEW, autoRotate: true, layers: { curve: true, trace: true, mechanism: true } };
+  const view = { ...DEFAULT_VIEW, autoRotate: 'orbit', layers: { curve: true, trace: true, mechanism: true } };
   await page.goto('about:blank');
   await page.goto(`${values.url}/#s=${encode({ preset: 'Gear train', design, view })}`);
   await page.waitForTimeout(1500);

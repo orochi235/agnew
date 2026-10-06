@@ -15,7 +15,7 @@ const base = (style, patch) => ({
   ...DEFAULT_VIEW,
   ...STYLE_DEFAULTS[style],
   style,
-  autoRotate: false,
+  autoRotate: 'off',
   fit: 'tight',
   azimuth: 0,
   elevation: 0,

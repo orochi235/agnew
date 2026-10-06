@@ -26,7 +26,7 @@ function view(style, patch = {}) {
     ...DEFAULT_VIEW,
     ...STYLE_DEFAULTS[style],
     style,
-    autoRotate: false,
+    autoRotate: 'off',
     ...patch,
     layers: { ...DEFAULT_VIEW.layers, ...patch.layers },
   };

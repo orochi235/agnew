@@ -67,6 +67,7 @@ import {
   tightFraming,
 } from './framing.js';
 import { gradientColors, paletteStops } from './palette.js';
+import { type AutoRotate, spin, turnsCurve } from './rotation.js';
 
 export type Style = 'neon' | 'tube' | 'ink' | 'ribbon';
 export const STYLES: readonly Style[] = ['neon', 'tube', 'ink', 'ribbon'];
@@ -94,7 +95,7 @@ export interface ViewSettings {
    *  The pen moves at this speed along the line, so a longer, more complex
    *  curve takes longer to draw. */
   traceSpeed: number;
-  autoRotate: boolean;
+  autoRotate: AutoRotate;
   /** How `fit()` frames the curve. */
   fit: FitMode;
   /** Camera direction around the vertical, in degrees; 0 looks from +z.
@@ -136,7 +137,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   bloom: AUTO,
   layers: { curve: true, trace: false, mechanism: false },
   traceSpeed: 4,
-  autoRotate: true,
+  autoRotate: 'orbit',
   fit: 'orbit',
   azimuth: 19,
   elevation: 15,
@@ -298,7 +299,11 @@ export function createAgnewView(
   const mechGroup = new Group();
   /** Everything drawn from the curve, so a stretch scales it all together. */
   const stage = new Group();
-  scene.add(stage);
+  /** Turns the stage for the auto-rotate modes that move the curve, outside
+   *  the stretch so a stretched curve turns as one shape. */
+  const spinner = new Group();
+  scene.add(spinner);
+  spinner.add(stage);
   stage.add(curveGroup, traceGroup, mechGroup);
 
   const glow = glowTexture();
@@ -557,7 +562,7 @@ export function createAgnewView(
     curveGroup.visible = s.layers.curve;
     traceGroup.visible = s.layers.trace;
     mechGroup.visible = s.layers.mechanism;
-    controls.autoRotate = s.autoRotate && playing;
+    controls.autoRotate = s.autoRotate === 'orbit' && playing;
     resize();
   }
 
@@ -656,6 +661,7 @@ export function createAgnewView(
       scene.fog.near = Math.max(0.01, d - curve.radius * 0.6);
       scene.fog.far = d + curve.radius * 4;
     }
+    if (playing) spin(spinner, s.autoRotate, dt);
     if (!cameraHeld) controls.update(dt);
     composer.render(dt);
   }
@@ -758,7 +764,8 @@ export function createAgnewView(
     let dist = orbitDistance(Math.max(c?.radius ?? 1, 0.05), ty, tx);
     const target = new Vector3();
     const back = camera.position.clone().sub(controls.target).normalize();
-    if (settings.fit === 'tight' && c) {
+    // A turning curve sweeps past any one angle's silhouette, so it gets the orbit sphere.
+    if (settings.fit === 'tight' && !turnsCurve(settings.autoRotate) && c) {
       const right = new Vector3(0, 1, 0).cross(back).normalize();
       const up = back.clone().cross(right);
       const basis = { right: right.toArray(), up: up.toArray(), back: back.toArray() };
@@ -803,7 +810,9 @@ export function createAgnewView(
         frameChanged();
       }
       if (settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation) aim();
-      if (reshaped || ((settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation) && settings.fit === 'tight')) fit();
+      if (settings.autoRotate !== prev.autoRotate) spinner.rotation.set(0, 0, 0);
+      const spinChanged = turnsCurve(settings.autoRotate) !== turnsCurve(prev.autoRotate);
+      if (reshaped || ((settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation || spinChanged) && settings.fit === 'tight')) fit();
       if (needsRebuild) dirty = true;
       else applySettings();
     },
@@ -847,7 +856,7 @@ export function createAgnewView(
     set playing(on: boolean) {
       playing = on;
       cameraHeld = !on;
-      controls.autoRotate = settings.autoRotate && playing;
+      controls.autoRotate = settings.autoRotate === 'orbit' && playing;
     },
     get progress() {
       const total = cum[cum.length - 1];

@@ -75,7 +75,7 @@
       "mechanism": false
     },
     "traceSpeed": 4,
-    "autoRotate": false,
+    "autoRotate": "off",
     "fit": "tight",
     "azimuth": 0,
     "elevation": 0,

@@ -1,6 +1,6 @@
 import { type ConfigOption, ControlPanel, f, isAuto, LabShell, resolveConfigSchema, withValueAtPath } from '@weasel-js/labkit';
 import { AUTO, type Design, PRESETS, presetByName } from 'agnew';
-import { type AgnewView, cameraPresetsFor, COLOR_FILTERS, createAgnewView, FIT_MODES, frameAspect, PALETTES, SHAPE_NAMES, type Shape, SHAPES, shapeBox, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
+import { type AgnewView, AUTO_ROTATE_LABELS, AUTO_ROTATES, cameraPresetsFor, COLOR_FILTERS, createAgnewView, FIT_MODES, frameAspect, PALETTES, SHAPE_NAMES, type Shape, SHAPES, shapeBox, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from 'agnew/three';
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parsePresetFile, presetFile, SAVED_PREFIX, useSavedPresets } from './saved';
 import { useFlyKeys } from './flyKeys';
@@ -38,7 +38,14 @@ const viewSchema = resolveConfigSchema(
     ribbonTwist: f.number(40).range(0, 400).step(1).label('Ribbon twists').manual().showIf(isStyle('ribbon')),
     hue: f.number(0).range(-180, 180).step(1).label('Hue').suffix('°').manual(),
     filter: f.enum('none', [...COLOR_FILTERS]).label('Filter').manual(),
-    autoRotate: f.boolean(true).label('Auto-rotate').manual(),
+    autoRotate: f
+      .enum(
+        'orbit',
+        AUTO_ROTATES.map((value) => ({ value, label: AUTO_ROTATE_LABELS[value] })),
+      )
+      .label('Auto-rotate')
+      .describe('Orbit swings the camera around the vertical; spin and tumble turn the curve itself.')
+      .manual(),
     fit: f
       .enum('orbit', [...FIT_MODES])
       .label('Fit')
@@ -172,7 +179,7 @@ export function App() {
       settings: state.view,
       // A chosen angle should stay put.
       onUserOrbit: () =>
-        setState((s) => (s.view.autoRotate ? { ...s, view: { ...s.view, autoRotate: false } } : s)),
+        setState((s) => (s.view.autoRotate === 'orbit' ? { ...s, view: { ...s.view, autoRotate: 'off' } } : s)),
       onCameraAngle: (angle) => setState((s) => ({ ...s, view: { ...s.view, ...angle } })),
     });
     viewRef.current = view;
@@ -199,7 +206,7 @@ export function App() {
   useEffect(() => viewRef.current?.setDesign(state.design), [state.design]);
   useEffect(() => viewRef.current?.setSettings(state.view), [state.view]);
   const stopRotating = useCallback(
-    () => setState((s) => (s.view.autoRotate ? { ...s, view: { ...s.view, autoRotate: false } } : s)),
+    () => setState((s) => (s.view.autoRotate === 'orbit' ? { ...s, view: { ...s.view, autoRotate: 'off' } } : s)),
     [],
   );
   useFlyKeys(viewRef, stopRotating);
@@ -278,13 +285,13 @@ export function App() {
       if (named) view = { ...view, ratioW: named[0], ratioH: named[1] };
       if ((path === 'ratioW' || path === 'ratioH') && SHAPES[view.shape].ratio) view = { ...view, shape: 'custom' };
       if ((path === 'shape' && value !== 'free') || path === 'ratioW' || path === 'ratioH') {
-        view = { ...view, fit: 'tight', autoRotate: false, azimuth: AUTO, elevation: AUTO };
+        view = { ...view, fit: 'tight', autoRotate: 'off', azimuth: AUTO, elevation: AUTO };
       }
       return { ...s, view };
     });
 
   const aimAt = (azimuth: number, elevation: number) => {
-    setState((s) => ({ ...s, view: { ...s.view, azimuth, elevation, autoRotate: false } }));
+    setState((s) => ({ ...s, view: { ...s.view, azimuth, elevation, autoRotate: 'off' } }));
     refit();
   };
 
@@ -426,7 +433,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() =>
-                  setState((s) => ({ ...s, view: { ...s.view, fit: 'tight', autoRotate: false, azimuth: AUTO, elevation: AUTO } }))
+                  setState((s) => ({ ...s, view: { ...s.view, fit: 'tight', autoRotate: 'off', azimuth: AUTO, elevation: AUTO } }))
                 }
               >
                 Fill frame
