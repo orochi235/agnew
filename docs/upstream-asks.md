@@ -18,8 +18,9 @@ the lab takes the new labkit.
 
 The lab takes its `@weasel-js` packages as `file:` dependencies on
 `~/src/weasel/packages/*`, for the loupe over a WebGL canvas
-(`<TrialLoupe source>`) and top-aligned property rows, neither released yet
-(weasel changesets `loupe-any-canvas`, `prop-rows-top`). It runs that
+(`<TrialLoupe source>`) whose wheel zooms only the lens, and top-aligned
+property rows, none released yet
+(weasel changesets `loupe-any-canvas`, `prop-rows-top`, `wheel-claim-stops-host`). It runs that
 checkout's built `dist`, so rebuild a weasel package after changing it.
 
 **CI cannot install these, so the Pages deploy fails until they go back to
