@@ -37,7 +37,7 @@ export function coverage(curve: Curve, frame: Box, lineWidth: number): number {
   return (curve.length * pxPerUnit * lineWidth) / Math.max(1, frame.width * frame.height);
 }
 
-const BASE_OPACITY: Record<Style, number> = { neon: 0.55, ink: 0.95, tube: 1, ribbon: 1 };
+const BASE_OPACITY: Record<Style, number> = { neon: 0.8, ink: 0.95, tube: 1, ribbon: 1 };
 const BASE_BLOOM: Record<Style, number> = { neon: 0.9, ink: 0, tube: 0.15, ribbon: 0.2 };
 
 /** Line opacity that keeps a dense curve from burning out: the style's usual

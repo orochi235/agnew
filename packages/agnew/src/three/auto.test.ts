@@ -22,8 +22,8 @@ describe('coverage', () => {
 
 describe('autoLineOpacity and autoBloom', () => {
   it('keep the style default when sparse and dim as coverage climbs', () => {
-    expect(autoLineOpacity('neon', 0.1)).toBeCloseTo(0.55, 9);
-    expect(autoLineOpacity('neon', 8)).toBeLessThan(0.2);
+    expect(autoLineOpacity('neon', 0.1)).toBeCloseTo(0.8, 9);
+    expect(autoLineOpacity('neon', 8)).toBeLessThan(0.25);
     expect(autoBloom('neon', 0.5)).toBeCloseTo(0.9, 9);
     expect(autoBloom('neon', 9)).toBeCloseTo(0.3, 9);
     expect(autoBloom('ink', 0.5)).toBe(0);

@@ -49,6 +49,7 @@ import { type Curve, type Design, evaluate, evaluateAt, timeSpan } from '../desi
 import { AUTO, type Auto } from '../params.js';
 import { autoBloom, autoLineOpacity, autoLineWidth, coverage } from './auto.js';
 import { COLOR_SHADER, type ColorFilter, filterIndex } from './color.js';
+import { flatEndedLineMaterial } from './lines.js';
 import { buildRibbon, buildTube, decimate, dropGaps, gapSegments, type SweptGeometry } from './geometry.js';
 import {
   angleOf,
@@ -443,7 +444,7 @@ export function createAgnewView(
         return g;
       };
       const makeMat = (opacity: number) =>
-        new LineMaterial({
+        flatEndedLineMaterial({
           vertexColors: true,
           linewidth: lineWidth,
           transparent: true,
@@ -451,7 +452,6 @@ export function createAgnewView(
           depthWrite: s.style === 'ink',
           blending: s.style === 'neon' ? AdditiveBlending : NormalBlending,
           fog: s.style === 'ink',
-          worldUnits: false,
         });
       const fullGeom = makeGeom();
       const traceGeom = makeGeom();
