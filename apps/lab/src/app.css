@@ -1,9 +1,3 @@
-/* LabShell pads its body for a workspace of tiles; this lab is one picture.
-   Fixed upstream — delete this with the next labkit. See docs/upstream-asks.md. */
-.lk-root {
-  --lk-workspace-pad: 0;
-}
-
 html,
 body,
 #root {
