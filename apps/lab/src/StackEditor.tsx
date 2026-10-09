@@ -2,6 +2,7 @@ import { ControlPanel, isAuto } from '@weasel-js/labkit';
 import { DragGhost, DragGrip, useReorderDragList } from '@weasel-js/ui';
 import { AUTO, BLOCK_KINDS, type Block, blockKind, createBlock, type Design, type ParamSpec } from 'agnew';
 import { useMemo, useState } from 'react';
+import { BlockMotions } from './BlockMotions';
 import { cachedParamSchema } from './schema';
 import './StackEditor.css';
 
@@ -131,6 +132,7 @@ export function StackEditor({ design, onChange }: Props) {
                   density="tight"
                 />
               )}
+              {b.enabled && <BlockMotions block={b} onChange={(motion) => update(b.id, { motion })} />}
             </section>
           );
         })}

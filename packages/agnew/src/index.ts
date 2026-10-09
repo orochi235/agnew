@@ -13,7 +13,7 @@ export {
   wrapSphere,
   wrapTorus,
 } from './blocks.js';
-export { type Animator, animate, waveAt } from './animate.js';
+export { type Animator, animate, moves, waveAt } from './animate.js';
 export { arcLengths, indexAtLength } from './arclength.js';
 export { decode, encode, portableDesign, sanitizeDesign } from './codec.js';
 export {

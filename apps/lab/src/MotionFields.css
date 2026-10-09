@@ -1,0 +1,38 @@
+.ag-motion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wzl-space-1, 4px);
+  padding: var(--wzl-space-1, 4px) 0 var(--wzl-space-1, 4px) var(--wzl-space-2, 8px);
+  border-left: 2px solid var(--wzl-accent);
+}
+
+.ag-motion__kind {
+  display: flex;
+  gap: 2px;
+}
+
+.ag-keys {
+  border-collapse: collapse;
+  font-size: var(--wzl-font-size-sm, 12px);
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-keys th {
+  font-weight: var(--wzl-font-weight-medium, 500);
+  color: var(--wzl-fg-muted);
+  text-align: start;
+}
+
+.ag-keys input {
+  width: 7ch;
+  text-align: end;
+}
+
+.ag-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

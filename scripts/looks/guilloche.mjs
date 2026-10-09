@@ -5,7 +5,7 @@ import { createBlock, presetByName } from '../../packages/agnew/dist/index.js';
 import { DEFAULT_VIEW, STYLE_DEFAULTS } from '../../packages/agnew/dist/three/index.js';
 
 const design = (turns, samples, blocks) => ({
-  version: 1,
+  version: 2, loop: 12, passes: 1,
   turns,
   samples,
   blocks: blocks.map(([kind, params]) => createBlock(kind, params)),

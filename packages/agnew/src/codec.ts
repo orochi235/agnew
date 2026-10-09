@@ -80,6 +80,7 @@ export function sanitizeDesign(value: unknown): Design | null {
     design.morph = {
       to: { blocks: sanitizeBlocks(m.to.blocks), turns: num(m.to.turns, 1, 0.01, 1000) },
       weight: num(m.weight, 0, 0, 1),
+      ...(typeof m.name === 'string' ? { name: m.name.slice(0, 200) } : {}),
       ...(motion ? { motion } : {}),
     };
   }

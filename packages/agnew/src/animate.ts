@@ -23,27 +23,35 @@ interface Mover {
 
 const channelFor = (block: number, key: string) => `${block}.${key}`;
 
+function movers(design: Design): Mover[] {
+  const out: Mover[] = [];
+  design.blocks.forEach((b, i) => {
+    for (const [key, motion] of Object.entries(b.motion ?? {})) {
+      if (typeof b.params[key] === 'number') out.push({ channel: channelFor(i, key), motion });
+    }
+  });
+  if (design.morph?.motion) out.push({ channel: MORPH, motion: design.morph.motion });
+  return out;
+}
+
+/** Whether anything in the design moves over its loop. */
+export const moves = (design: Design): boolean => movers(design).length > 0;
+
 /** One blits mix over the design's moving values: a channel per value, a
  *  looping voice per motion. A wave's channel is added to the set value; a
  *  `keys` channel replaces it. */
 export function animate(design: Design): Animator {
-  const movers: Mover[] = [];
-  design.blocks.forEach((b, i) => {
-    for (const [key, motion] of Object.entries(b.motion ?? {})) {
-      if (typeof b.params[key] === 'number') movers.push({ channel: channelFor(i, key), motion });
-    }
-  });
-  if (design.morph?.motion) movers.push({ channel: MORPH, motion: design.morph.motion });
-  if (movers.length === 0) {
+  const moving = movers(design);
+  if (moving.length === 0) {
     const still = fixed(design, () => undefined);
     return { moving: false, at: () => still };
   }
 
   const loopMs = design.loop * 1000;
   const kit: Record<string, Channel<number>> = {};
-  for (const m of movers) kit[m.channel] = sum();
+  for (const m of moving) kit[m.channel] = sum();
   const timeline: Mix<string, Pose> = mix<string, Pose>(kit);
-  for (const m of movers) timeline.cue({ patch: patchFor(m, loopMs, kit), loop: true, start: 0 });
+  for (const m of moving) timeline.cue({ patch: patchFor(m, loopMs, kit), loop: true, start: 0 });
 
   // The mix's clock only runs forward: an earlier point in the loop is reached
   // by wrapping forward to the same point in a later pass.

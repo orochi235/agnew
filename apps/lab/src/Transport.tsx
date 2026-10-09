@@ -5,11 +5,11 @@ interface Props {
   view: RefObject<AgnewView | null>;
   playing: boolean;
   onPlayingChange(playing: boolean): void;
-  /** Show the scrubber; it only means something while the pen is drawn. */
+  /** Show the scrubber; it only means something while the pen is drawn or the curve moves. */
   scrubbable: boolean;
 }
 
-/** Play/pause and a scrubber over the pen's position along the curve. */
+/** Play/pause and a scrubber over the design's loop. */
 export function Transport({ view, playing, onPlayingChange, scrubbable }: Props) {
   const scrubRef = useRef<HTMLInputElement>(null);
   const dragging = useRef(false);
@@ -46,7 +46,7 @@ export function Transport({ view, playing, onPlayingChange, scrubbable }: Props)
           max={1}
           step={0.0001}
           defaultValue={0}
-          aria-label="Pen position"
+          aria-label="Time in the loop"
           onPointerDown={() => {
             dragging.current = true;
             onPlayingChange(false);

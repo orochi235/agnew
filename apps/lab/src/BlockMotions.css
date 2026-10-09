@@ -1,0 +1,24 @@
+.ag-motions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wzl-space-2, 8px);
+  margin-top: var(--wzl-space-1, 4px);
+}
+
+.ag-motions__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--wzl-font-size-sm, 12px);
+  color: var(--wzl-fg-muted);
+}
+
+.ag-motions__head .ag-btn {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+}
+
+.ag-motions__add {
+  align-self: flex-start;
+}

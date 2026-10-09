@@ -171,3 +171,14 @@ body {
   font-variant-numeric: tabular-nums;
   cursor: text;
 }
+
+.ag-morph {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wzl-space-1, 4px);
+  margin-top: var(--wzl-space-2, 8px);
+}
+
+.ag-morph > .ag-btn {
+  align-self: flex-start;
+}

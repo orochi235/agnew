@@ -205,27 +205,49 @@ step('frames a shape, aims from a camera preset, and flies with the keyboard', a
   await page.waitForTimeout(500);
 });
 
-step('traces at a steady speed, so a longer curve takes longer', async () => {
-  // Share of each curve drawn after the same time, measured as ink relative
-  // to the whole curve; the harmonograph is about 4.6× longer than the knot.
-  const drawn = {};
-  for (const name of ['Torus knot', 'Harmonograph']) {
-    const design = portableDesign(PRESETS.find((x) => x.name === name).design());
-    const ink = [];
-    for (const [layers, wait] of [
-      [{ curve: true, trace: false, mechanism: false }, 1200],
-      [{ curve: false, trace: true, mechanism: false }, 3000],
-    ]) {
-      const view = { ...DEFAULT_VIEW, autoRotate: 'off', bloom: 0, lineWidth: 1.6, lineOpacity: 0.55, traceSpeed: 4, layers };
-      await page.goto('about:blank');
-      await page.goto(`${values.url}/#s=${encode({ preset: name, design, view })}`);
-      await page.waitForTimeout(wait);
-      ink.push(await inked());
+/** Load a design and view straight from the URL, with nothing carried over. */
+async function open(preset, design, view) {
+  await page.goto('about:blank');
+  await page.goto(`${values.url}/#s=${encode({ preset, design, view })}`);
+}
+
+step('draws GPU lines that match the CPU ones, for every preset and a morph', async () => {
+  const still = { ...DEFAULT_VIEW, autoRotate: 'off', bloom: 0 };
+  const knot = PRESETS.find((x) => x.name === 'Torus knot').design();
+  const morph = { ...knot, morph: { to: PRESETS.find((x) => x.name === 'Harmonograph').design(), weight: 0.4 } };
+  const cases = [...PRESETS.map((p) => [p.name, p.design()]), ['morph', morph]];
+  for (const [i, [name, d]] of cases.entries()) {
+    const shots = [];
+    for (const gpu of [false, true]) {
+      await open(name, portableDesign(d), { ...still, gpu });
+      await page.waitForTimeout(900);
+      shots.push(await page.locator('.ag-canvas').screenshot());
     }
-    drawn[name] = ink[1] / ink[0];
+    const diff = await pngDiff(shots[0], shots[1]);
+    console.log(`  ${i + 1}/${cases.length} ${name}: ${diff.toFixed(2)}`);
+    if (diff > 1.5) fail(`${name}: GPU lines differ from CPU ones by ${diff.toFixed(2)} per channel`);
   }
-  const ratio = drawn.Harmonograph / drawn['Torus knot'];
-  if (!(ratio < 0.5)) fail(`harmonograph drew ${(ratio * 100).toFixed(0)}% as much as the knot; expected well under half`);
+});
+
+step('moves a curve that has a motion, in every style, and holds it while paused', async () => {
+  const design = portableDesign(PRESETS.find((x) => x.name === 'Torus knot').design());
+  design.loop = 4;
+  design.blocks[0].motion = { r: { kind: 'wave', shape: 'sine', cycles: 1, depth: 0.2, phase: 0 } };
+  const canvas = page.locator('.ag-canvas');
+  for (const style of ['neon', 'tube']) {
+    await open('', design, { ...DEFAULT_VIEW, style, autoRotate: 'off' });
+    await page.waitForTimeout(900);
+    const a = await canvas.screenshot();
+    await page.waitForTimeout(700);
+    const b = await canvas.screenshot();
+    if ((await pngDiff(a, b)) < 0.3) fail(`${style}: the moving curve did not change`);
+    await page.getByRole('button', { name: 'Pause' }).click();
+    await page.waitForTimeout(300);
+    const c = await canvas.screenshot();
+    await page.waitForTimeout(600);
+    const d = await canvas.screenshot();
+    if ((await pngDiff(c, d)) > 0.05) fail(`${style}: the curve kept moving while paused`);
+  }
 });
 
 step('pauses, scrubs, and stops auto-rotating once the view is grabbed', async () => {
@@ -243,11 +265,11 @@ step('pauses, scrubs, and stops auto-rotating once the view is grabbed', async (
   const b = await canvas.screenshot();
   if ((await pngDiff(a, b)) > 0.05) fail('picture kept changing while paused');
 
-  await page.getByRole('slider', { name: 'Pen position' }).fill('0.6');
+  await page.getByRole('slider', { name: 'Time in the loop' }).fill('0.6');
   await page.waitForTimeout(300);
   const c = await canvas.screenshot();
   if ((await pngDiff(b, c)) < 0.05) fail('scrubbing did not move the pen');
-  const held = Number(await page.getByRole('slider', { name: 'Pen position' }).inputValue());
+  const held = Number(await page.getByRole('slider', { name: 'Time in the loop' }).inputValue());
   if (Math.abs(held - 0.6) > 0.01) fail(`scrubber drifted to ${held} while paused`);
 
   await canvas.click(PICTURE_SPOT);

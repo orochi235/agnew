@@ -25,10 +25,9 @@ export interface ViewSettings {
   /** Bloom strength; 0 turns the pass off. */
   bloom: number | Auto;
   layers: { curve: boolean; trace: boolean; mechanism: boolean };
-  /** How far the pen travels per second, in multiples of the curve's radius.
-   *  The pen moves at this speed along the line, so a longer, more complex
-   *  curve takes longer to draw. */
-  traceSpeed: number;
+  /** Evaluate neon and ink lines on the GPU, so an animated curve redraws
+   *  without rebuilding its geometry. */
+  gpu: boolean;
   autoRotate: AutoRotate;
   /** How `fit()` frames the curve. */
   fit: FitMode;
@@ -70,7 +69,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   ribbonTwist: 40,
   bloom: AUTO,
   layers: { curve: true, trace: false, mechanism: false },
-  traceSpeed: 4,
+  gpu: true,
   autoRotate: 'orbit',
   fit: 'orbit',
   azimuth: 19,

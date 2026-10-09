@@ -1,4 +1,5 @@
 import { usePresentation } from '@weasel-js/labkit';
+import { moves } from 'agnew';
 import { createAgnewView, frameAspect, shapeBox } from 'agnew/three';
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
 import { ArtLoupe } from './ArtLoupe';
@@ -95,7 +96,7 @@ export function Picture() {
               view={viewRef}
               playing={state.playing}
               onPlayingChange={setPlaying}
-              scrubbable={state.view.layers.trace || state.view.layers.mechanism}
+              scrubbable={state.view.layers.trace || state.view.layers.mechanism || moves(state.design)}
             />
           </div>
           <ArtLoupe canvasRef={canvasRef} />

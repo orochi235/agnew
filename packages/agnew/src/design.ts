@@ -16,6 +16,8 @@ export interface Block {
  *  fraction along each. */
 export interface Morph {
   to: { blocks: Block[]; turns: number };
+  /** What the other curve is called, for showing which it is. */
+  name?: string;
   /** 0 is this design's curve, 1 the other's. */
   weight: number;
   motion?: Motion;
@@ -68,21 +70,29 @@ interface Step {
   guide?: Vec3[][];
 }
 
-function compile(design: Design, context: EvalContext): Step[] {
+/** The enabled blocks in order, each with its params as evaluation sees
+ *  them: missing ones filled and `'auto'` worked out. */
+export function resolvedBlocks(design: Design, context: EvalContext = {}): { kind: string; params: ParamValues }[] {
   const ctx: EvalContext = { ...context };
   return design.blocks
     .filter((b) => b.enabled)
     .map((b) => {
-      const k = blockKind(b.kind);
       const params = resolved(b, ctx);
       if (b.kind === 'torusKnot' || b.kind === 'wrapTorus') ctx.torus = { R: params.R as number, r: params.r as number };
-      return {
-        apply: (p: Vec3, t: number) => k.apply(p, t, params),
-        role: k.role,
-        linear: !!k.linear,
-        guide: k.guide?.(params),
-      };
+      return { kind: b.kind, params };
     });
+}
+
+function compile(design: Design, context: EvalContext): Step[] {
+  return resolvedBlocks(design, context).map(({ kind, params }) => {
+    const k = blockKind(kind);
+    return {
+      apply: (p: Vec3, t: number) => k.apply(p, t, params),
+      role: k.role,
+      linear: !!k.linear,
+      guide: k.guide?.(params),
+    };
+  });
 }
 
 export const timeSpan = (design: Design): number => design.turns * Math.PI * 2;

@@ -34,7 +34,7 @@ const SHAPES = [
 ];
 
 const design = (turns, samples, blocks) => ({
-  version: 1,
+  version: 2, loop: 12, passes: 1,
   turns,
   samples,
   blocks: blocks.map(([kind, params]) => createBlock(kind, params)),

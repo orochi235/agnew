@@ -14,7 +14,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 import type { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import type { Curve } from '../design.js';
 import { buildRibbon, buildTube, decimate, dropGaps, gapSegments, type SweptGeometry } from './geometry.js';
-import { flatEndedLineMaterial } from './lines.js';
+import type { CurveProgram } from './glsl.js';
+import { curveUniforms, flatEndedLineMaterial } from './lines.js';
 import { gradientColors, paletteStops } from './palette.js';
 import type { ViewSettings } from './settings.js';
 
@@ -33,10 +34,15 @@ export interface Built {
   baseWidths: number[];
   /** Replace the drawn shape with another curve, keeping materials. */
   reshape(curve: Curve): void;
+  /** On the GPU path: the program it was compiled for, and how to give it
+   *  another moment's values. A program with another key needs a new build. */
+  gpu?: { key: string; update(program: CurveProgram): void };
 }
 
 export interface BuildInputs {
   curve: Curve;
+  /** Evaluate the line on the GPU from this program; neon and ink only. */
+  program?: CurveProgram;
   settings: ViewSettings;
   lineWidth: number;
   lineOpacity: number;
@@ -46,7 +52,74 @@ export interface BuildInputs {
 /** The full curve and its trace copy for the settings' style. */
 export function buildCurve(inputs: BuildInputs): { full: Object3D; trace: Object3D; built: Built } {
   const s = inputs.settings;
-  return s.style === 'neon' || s.style === 'ink' ? buildLines(inputs) : buildMesh(inputs);
+  if (s.style === 'neon' || s.style === 'ink') return inputs.program ? buildGpuLines(inputs, inputs.program) : buildLines(inputs);
+  return buildMesh(inputs);
+}
+
+const lineMaterial = (s: ViewSettings, lineWidth: number, opacity: number, curve?: Parameters<typeof flatEndedLineMaterial>[1]) =>
+  flatEndedLineMaterial(
+    {
+      vertexColors: true,
+      linewidth: lineWidth,
+      transparent: true,
+      opacity,
+      depthWrite: s.style === 'ink',
+      blending: s.style === 'neon' ? AdditiveBlending : NormalBlending,
+      fog: s.style === 'ink',
+    },
+    curve,
+  );
+
+/** Segments whose ends hold only how far along the curve they are; the
+ *  material's vertex shader evaluates the curve there. */
+function buildGpuLines({ curve, settings: s, lineWidth, lineOpacity }: BuildInputs, program: CurveProgram) {
+  const bothOn = s.layers.curve && s.layers.trace;
+  const count = curve.count;
+  const segments = count - 1;
+  const ends = new Float32Array(segments * 6);
+  for (let i = 0; i < segments; i++) {
+    ends[i * 6] = i / segments;
+    ends[i * 6 + 3] = (i + 1) / segments;
+  }
+  const colors = gradientColors(count, paletteStops(s.palette));
+  const segColors = new Float32Array(segments * 6);
+  for (let i = 0; i < segments; i++) segColors.set(colors.subarray(i * 3, i * 3 + 6), i * 6);
+  const uniforms = curveUniforms(program.values.length / 4);
+  const setUniforms = (p: CurveProgram) => {
+    uniforms.agP.value.set(p.values);
+    uniforms.agSpan.value.set(p.span[0], p.span[1]);
+    uniforms.agMorph.value = p.morph;
+  };
+  setUniforms(program);
+  const curveShader = { key: program.key, glsl: program.glsl, uniforms };
+  const make = () => {
+    const g = new LineSegmentsGeometry();
+    g.setPositions(ends);
+    g.setColors(segColors);
+    return g;
+  };
+  const fullGeom = make();
+  const traceGeom = make();
+  const fullMat = lineMaterial(s, lineWidth, bothOn ? lineOpacity * DIM_OPACITY * 2 : lineOpacity, curveShader);
+  const traceMat = lineMaterial(s, lineWidth, lineOpacity, curveShader);
+  const full = new LineSegments2(fullGeom, fullMat);
+  const trace = new LineSegments2(traceGeom, traceMat);
+  // Their bounds were measured from the stand-in positions, not the curve.
+  full.frustumCulled = false;
+  trace.frustumCulled = false;
+  const built: Built = {
+    objects: [full, trace],
+    materials: [fullMat, traceMat],
+    geometries: [fullGeom, traceGeom],
+    lineMaterials: [fullMat, traceMat],
+    baseWidths: [lineWidth, lineWidth],
+    reveal: (u) => {
+      traceGeom.instanceCount = Math.floor(u * segments);
+    },
+    reshape: () => {},
+    gpu: { key: program.key, update: setUniforms },
+  };
+  return { full, trace, built };
 }
 
 function buildLines({ curve, settings: s, lineWidth, lineOpacity }: BuildInputs) {
@@ -62,18 +135,8 @@ function buildLines({ curve, settings: s, lineWidth, lineOpacity }: BuildInputs)
     }
   };
   fill();
-  const makeMat = (opacity: number) =>
-    flatEndedLineMaterial({
-      vertexColors: true,
-      linewidth: lineWidth,
-      transparent: true,
-      opacity,
-      depthWrite: s.style === 'ink',
-      blending: s.style === 'neon' ? AdditiveBlending : NormalBlending,
-      fog: s.style === 'ink',
-    });
-  const fullMat = makeMat(bothOn ? lineOpacity * DIM_OPACITY * 2 : lineOpacity);
-  const traceMat = makeMat(lineOpacity);
+  const fullMat = lineMaterial(s, lineWidth, bothOn ? lineOpacity * DIM_OPACITY * 2 : lineOpacity);
+  const traceMat = lineMaterial(s, lineWidth, lineOpacity);
   const full = new LineSegments2(fullGeom, fullMat);
   const trace = new LineSegments2(traceGeom, traceMat);
   let revealed = 0;
