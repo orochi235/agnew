@@ -35,8 +35,20 @@ const fail = (msg) => {
  *  bottom edge. */
 async function frameBox() {
   const b = await page.locator('.ag-viewport').boundingBox();
-  return { x: b.x, y: b.y, width: b.width, height: b.height - 70 };
+  // Inset, so the corner `inked` reads as ground is not the trial's border.
+  return { x: b.x + 4, y: b.y + 4, width: b.width - 8, height: b.height - 74 };
 }
+
+/** Stop the view turning by itself, from the Look panel. */
+async function autoRotateOff() {
+  // The picker's accessible name carries its value, so it is found by its label.
+  await page.locator('button[aria-label="Auto-rotate"]').click();
+  await page.getByRole('option', { name: 'Off', exact: true }).click();
+}
+
+/** A click on the picture that lands on nothing over it: clear of the
+ *  sidebar's resize seam along the canvas's left edge. */
+const PICTURE_SPOT = { position: { x: 40, y: 40 } };
 
 /** Fraction of sampled pixels in that area differing from its corner pixel. */
 async function inked() {
@@ -147,7 +159,7 @@ step('turns the camera from the Elevation slider, and a drag writes the angle ba
     const v = decode((await hash()).slice('#s='.length)).view;
     return { azimuth: v.azimuth, elevation: v.elevation };
   };
-  await page.getByRole('checkbox', { name: 'Auto-rotate' }).uncheck();
+  await autoRotateOff();
   await page.waitForTimeout(800);
   const start = await angle();
   const before = await page.screenshot({ clip: await frameBox() });
@@ -181,7 +193,7 @@ step('frames a shape, aims from a camera preset, and flies with the keyboard', a
   await page.getByRole('button', { name: 'Raking' }).click();
   await page.waitForTimeout(800);
   if (decode((await hash()).slice('#s='.length)).view.elevation !== 35) fail('Raking preset did not set the angle');
-  await page.locator('.ag-canvas').click({ position: { x: 5, y: 5 } });
+  await page.locator('.ag-canvas').click(PICTURE_SPOT);
   const before = await page.screenshot({ clip: await frameBox() });
   await page.keyboard.down('KeyW');
   await page.waitForTimeout(400);
@@ -238,7 +250,7 @@ step('pauses, scrubs, and stops auto-rotating once the view is grabbed', async (
   const held = Number(await page.getByRole('slider', { name: 'Pen position' }).inputValue());
   if (Math.abs(held - 0.6) > 0.01) fail(`scrubber drifted to ${held} while paused`);
 
-  await canvas.click({ position: { x: 5, y: 5 } });
+  await canvas.click(PICTURE_SPOT);
   await page.keyboard.press('Space');
   if (!(await page.getByRole('button', { name: 'Pause' }).isVisible())) fail('Space did not resume');
 
@@ -247,7 +259,8 @@ step('pauses, scrubs, and stops auto-rotating once the view is grabbed', async (
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2 + 20, { steps: 5 });
   await page.mouse.up();
-  if (await page.getByRole('checkbox', { name: 'Auto-rotate' }).isChecked()) fail('grabbing the view left auto-rotate on');
+  await page.waitForTimeout(400);
+  if (decode((await hash()).slice('#s='.length)).view.autoRotate !== 'off') fail('grabbing the view left auto-rotate on');
 });
 
 step('saves a preset in the browser, keeps it across reloads, and deletes it', async () => {
@@ -319,7 +332,7 @@ function pngDiff(a, b) {
 }
 
 step('exports PNGs that match the screen at every scale', async () => {
-  await page.getByRole('checkbox', { name: 'Auto-rotate' }).uncheck();
+  await autoRotateOff();
   await page.getByRole('checkbox', { name: 'Trace' }).uncheck();
   await page.getByRole('checkbox', { name: 'Mechanism' }).uncheck();
   await page.waitForTimeout(1500);
@@ -329,7 +342,9 @@ step('exports PNGs that match the screen at every scale', async () => {
     const big = await exportPNG(k);
     const w = big.readUInt32BE(16);
     const h = big.readUInt32BE(20);
-    if (w !== Math.round(box.width * 2 * k) || h !== Math.round(box.height * 2 * k)) {
+    // A box laid out at a fractional size rounds to whole device pixels
+    // before the export scales them, so it may be a device pixel off, times k.
+    if (Math.abs(w - box.width * 2 * k) > k || Math.abs(h - box.height * 2 * k) > k) {
       fail(`${k}×: PNG is ${w}x${h}, expected ${k}× the ${box.width}x${box.height} framed picture at 2 device pixels`);
     }
     const d = await pngDiff(one, big);
