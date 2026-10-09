@@ -9,25 +9,17 @@ body {
   background: var(--wzl-surface-sunken, #0b0d12);
 }
 
-.ag-layout {
+.ag-picture {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  height: calc(100vh - 56px);
-  min-height: 420px;
-}
-
-.ag-bare {
-  position: relative;
-  height: 100vh;
+  min-width: 0;
+  min-height: 0;
 }
 
 .ag-viewport {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
   pointer-events: none;
-  min-width: 0;
-  min-height: 0;
 }
 
 .ag-shape {
@@ -44,7 +36,6 @@ body {
 .ag-canvas {
   pointer-events: auto;
   z-index: 0;
-  /* Spans the whole layout, sidebar included, so the art shows through it. */
   position: absolute;
   inset: 0;
   display: block;
@@ -107,29 +98,9 @@ body {
   cursor: pointer;
 }
 
-.ag-sidebar {
-  position: relative;
-  z-index: 2;
-  overflow-y: auto;
-  border-left: 1px solid var(--wzl-border);
-  background: color-mix(in srgb, var(--wzl-surface) 72%, transparent);
-  backdrop-filter: blur(14px);
+.ag-panel {
   color: var(--wzl-fg);
   font-family: var(--wzl-font-ui);
-}
-
-.ag-section {
-  padding: var(--wzl-space-3, 12px);
-  border-bottom: 1px solid var(--wzl-border);
-}
-
-.ag-heading {
-  margin: 0 0 var(--wzl-space-2, 8px);
-  font-size: var(--wzl-font-size-xs, 11px);
-  font-weight: var(--wzl-font-weight-bold, 700);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--wzl-fg-muted);
 }
 
 .ag-buttons {
@@ -140,7 +111,7 @@ body {
 }
 
 .ag-btn,
-.ag-sidebar select,
+.ag-panel select,
 .ag-inline input {
   height: var(--wzl-control-h, 28px);
   padding: 0 var(--wzl-space-3, 10px);
@@ -199,17 +170,4 @@ body {
   padding: 0 6px;
   font-variant-numeric: tabular-nums;
   cursor: text;
-}
-
-@media (max-width: 760px) {
-  .ag-layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: 60vh auto;
-    height: auto;
-  }
-
-  .ag-sidebar {
-    border-left: 0;
-    border-top: 1px solid var(--wzl-border);
-  }
 }

@@ -31,8 +31,8 @@ const fail = (msg) => {
   throw new Error(msg);
 };
 
-/** The clear area the picture is composed for: the canvas runs on under the
- *  translucent sidebar, and the transport bar sits over its bottom edge. */
+/** The area the picture is composed for, less the transport bar over its
+ *  bottom edge. */
 async function frameBox() {
   const b = await page.locator('.ag-viewport').boundingBox();
   return { x: b.x, y: b.y, width: b.width, height: b.height - 70 };
@@ -61,7 +61,7 @@ async function inked() {
 }
 
 const hash = () => page.evaluate(() => location.hash);
-const selects = () => page.locator('.ag-sidebar select');
+const selects = () => page.locator('.ag-panel select');
 const blockCards = () => page.locator('.ag-card');
 
 step('loads and draws', async () => {

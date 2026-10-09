@@ -15,8 +15,8 @@ the smoke script; nothing is published to npm yet.
 
 - `packages/agnew` — the library, to be published as `agnew`. `agnew` is the
   pure curve model (no DOM, no three.js); `agnew/three` is the renderer.
-- `apps/lab` — the lab app (Vite + React on `@weasel-js/labkit`), built only on
-  the library's public API.
+- `apps/lab` — the lab app (Vite + React, one labkit `<Lab>` instrument), built
+  only on the library's public API.
 - `docs/superpowers/specs/2026-09-22-agnew-design.md` — the design and the
   decisions behind it.
 
@@ -25,7 +25,7 @@ the smoke script; nothing is published to npm yet.
 ```bash
 npm install
 npm run dev          # lab on http://localhost:5190
-npm test             # library unit tests
+npm test             # unit tests: the library and the lab
 npm run smoke        # drives the running lab headless (Chrome) end to end
 npm run shots        # screenshots of every preset and style into shots/
 ```
@@ -91,6 +91,10 @@ it is; exports and recordings cover the framed box only.
 current frame, and `view.progress` (0–1 by distance) reads or moves the pen.
 The lab puts both in a bar over the canvas (Space toggles play), and grabbing
 the view turns auto-rotate off so a chosen angle stays put.
+
+`?bare` opens the lab presenting: the picture alone, for embedding. labkit's own
+`?present` does the same, and the lab's **Present** button presents in place
+until Escape.
 
 The lab saves presets (design plus look) by name in the browser, where they
 join the preset dropdown, or as `.agnew.json` files to keep or share.
