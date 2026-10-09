@@ -4,15 +4,12 @@ import {
   Fog,
   Group,
   HalfFloatType,
-  PerspectiveCamera,
   PMREMGenerator,
   Scene,
   Vector2,
-  Vector3,
   WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
@@ -24,68 +21,29 @@ import { arcLengths, indexAtLength } from '../arclength.js';
 import type { EvalContext } from '../blocks.js';
 import { type Curve, type Design, evaluate, evaluateAt, sampleCount, timeSpan } from '../design.js';
 import { AUTO } from '../params.js';
-import type { Vec3 } from '../vec.js';
+import type { AgnewView } from './api.js';
+import { createCameraRig } from './camera.js';
 import { autoBloom, autoLineOpacity, autoLineWidth, coverage } from './auto.js';
 import { type Built, buildCurve, neonExposure } from './build.js';
 import { COLOR_SHADER, filterIndex } from './color.js';
-import { createExporter, type RecordOptions } from './export.js';
+import { createExporter } from './export.js';
 import {
-  angleOf,
   bestAngle,
   type Box,
-  directionFor,
   fovFor,
   frameAspect,
-  halfTangents,
-  orbitDistance,
   shapeBox,
   stretchFor,
-  tightFraming,
 } from './framing.js';
 import { curveProgram } from './glsl.js';
 import { createMechanism } from './mechanism.js';
 import { paletteStops } from './palette.js';
-import { type DragSample, type Fling, flingFrom, spin, turnsCurve } from './rotation.js';
+import { spin, turnsCurve } from './rotation.js';
 import { DEFAULT_VIEW, numberOr, type ViewSettings } from './settings.js';
 
+export type { AgnewView } from './api.js';
 export type { RecordOptions } from './export.js';
 export { DEFAULT_VIEW, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from './settings.js';
-
-export interface AgnewView {
-  setDesign(design: Design): void;
-  setSettings(patch: Partial<ViewSettings>): void;
-  readonly settings: ViewSettings;
-  /** Move the camera so the whole curve is in view, keeping its direction. */
-  fit(): void;
-  /** Fly the camera and its target together, in camera space: `right`, `up`
-   *  and `forward` are in multiples of the curve's radius. */
-  fly(right: number, up: number, forward: number): void;
-  /** The camera angle that lets a tight fit fill the current frame most. */
-  bestAngle(): { azimuth: number; elevation: number };
-  /** The settings that may be `'auto'`, as the numbers in use right now. */
-  resolved(): { lineWidth: number; lineOpacity: number; bloom: number; azimuth: number; elevation: number };
-  /** Back to the start of the loop. */
-  restartTrace(): void;
-  /** Whether the clock, and with it the pen, any motion and auto-rotation, is running. */
-  playing: boolean;
-  /** How far through the design's loop the clock is, 0–1. Setting it moves
-   *  the clock there. */
-  progress: number;
-  /**
-   * Compose for a box smaller than the canvas, in CSS pixels. The picture
-   * keeps the position and scale it had at that size and the canvas paints
-   * past it — which is how art runs under a translucent panel without the
-   * framing moving. Exports and recordings still cover the framed box only.
-   * The box is placed at `x`, `y` in the canvas, its top left by default.
-   */
-  setFraming(box: { width: number; height: number; x?: number; y?: number } | null): void;
-  /** A PNG of the current frame at `scale` times the on-screen resolution,
-   *  rendered in tiles so large sizes work on any GPU. */
-  exportPNG(scale?: number): Promise<Blob>;
-  /** A WebM of the canvas for `seconds`. */
-  record(seconds: number, options?: RecordOptions): Promise<Blob>;
-  dispose(): void;
-}
 
 /** Points in the curve the pen and trace measure distance along, while the
  *  drawn line is evaluated on the GPU. */
@@ -111,49 +69,14 @@ export function createAgnewView(
   renderer.setPixelRatio(basePixelRatio);
 
   const scene = new Scene();
-  const camera = new PerspectiveCamera(fovFor(1), 1, 0.01, 100);
-  camera.position.set(...directionFor(numberOr(settings.azimuth, 19), numberOr(settings.elevation, 15))).multiplyScalar(3.5);
-  const controls = new OrbitControls(camera, canvas);
-  controls.enableDamping = true;
-  controls.autoRotateSpeed = 0.6;
+  const rig = createCameraRig(
+    canvas,
+    { azimuth: numberOr(settings.azimuth, 19), elevation: numberOr(settings.elevation, 15) },
+    { onUserOrbit: init.onUserOrbit, onCameraAngle: init.onCameraAngle },
+  );
+  const { camera } = rig;
   let playing = true;
-  /** Paused and not yet touched: the camera holds still instead of coasting
-   *  on damping, so pausing lands on the angle it was at. */
-  let cameraHeld = false;
-  /** The turn the last drag threw, for `fling`, and the drag being watched for the next. */
-  let thrown: Fling | null = null;
-  let drag: DragSample[] | null = null;
-  const cameraDir = (): Vec3 => camera.position.clone().sub(controls.target).normalize().toArray();
-  controls.addEventListener('start', () => {
-    cameraHeld = false;
-    drag = [{ t: performance.now(), dir: cameraDir() }];
-    init.onUserOrbit?.();
-  });
-  controls.addEventListener('change', () => {
-    if (!drag) return;
-    const dir = cameraDir();
-    // Turning the camera catches a fling; a zoom or pan leaves it going.
-    if (dir.some((v, i) => Math.abs(v - drag![0].dir[i]) > 1e-6)) thrown = null;
-    drag.push({ t: performance.now(), dir });
-    if (drag.length > 32) drag.splice(1, 1);
-  });
-  controls.addEventListener('end', () => {
-    if (drag && thrown === null) thrown = flingFrom(drag, performance.now());
-    drag = null;
-    const d = camera.position.clone().sub(controls.target);
-    const a = angleOf([d.x, d.y, d.z]);
-    const round = (x: number) => Math.round(x * 10) / 10;
-    init.onCameraAngle?.({ azimuth: round(a.azimuth), elevation: round(a.elevation) });
-  });
-
-  /** Turn the camera to the settings' angle around its target, keeping distance. */
-  function aim() {
-    const dist = camera.position.distanceTo(controls.target);
-    const a = angle();
-    const d = directionFor(a.azimuth, a.elevation);
-    camera.position.copy(controls.target).add(new Vector3(...d).multiplyScalar(dist));
-    camera.lookAt(controls.target);
-  }
+  const aim = () => rig.aim(angle());
 
   const pmrem = new PMREMGenerator(renderer);
   const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -375,9 +298,7 @@ export function createAgnewView(
     curveGroup.visible = s.layers.curve;
     traceGroup.visible = s.layers.trace;
     mechanism.group.visible = s.layers.mechanism;
-    controls.autoRotate = s.autoRotate === 'orbit' && playing;
-    // A fling hands the drag's motion to the curve; the camera coasting on as well would turn it twice.
-    controls.enableDamping = s.autoRotate !== 'fling';
+    rig.setMotion(playing, s.autoRotate);
     resize();
   }
 
@@ -444,8 +365,8 @@ export function createAgnewView(
       scene.fog.near = Math.max(0.01, d - curve.radius * 0.6);
       scene.fog.far = d + curve.radius * 4;
     }
-    if (playing) spin(spinner, s.autoRotate, dt, thrown);
-    if (!cameraHeld) controls.update(dt);
+    if (playing) spin(spinner, s.autoRotate, dt, rig.thrown);
+    rig.update(dt);
     composer.render(dt);
   }
 
@@ -454,28 +375,11 @@ export function createAgnewView(
   function fit() {
     const raw = curve ?? (design ? evaluate({ ...design, samples: 2000 }, context()) : null);
     const k = stage.scale;
-    let c = raw;
-    if (raw && (k.x !== 1 || k.y !== 1 || k.z !== 1)) {
-      c = { ...raw, positions: stretched(raw), radius: raw.radius * Math.max(k.x, k.y, k.z) };
-    }
-    const [ty, tx] = halfTangents(camera.fov, camera.aspect);
-    let dist = orbitDistance(Math.max(c?.radius ?? 1, 0.05), ty, tx);
-    const target = new Vector3();
-    const back = camera.position.clone().sub(controls.target).normalize();
-    // A turning curve sweeps past any one angle's silhouette, so it gets the orbit sphere.
-    if (settings.fit === 'tight' && !turnsCurve(settings.autoRotate) && c) {
-      const right = new Vector3(0, 1, 0).cross(back).normalize();
-      const up = back.clone().cross(right);
-      const basis = { right: right.toArray(), up: up.toArray(), back: back.toArray() };
-      const f = tightFraming(c.positions, c.count, basis, ty, tx);
-      dist = Math.max(f.distance, 0.05);
-      target.addScaledVector(right, f.pan[0]).addScaledVector(up, f.pan[1]);
-    }
-    camera.position.copy(target).addScaledVector(back, dist);
-    camera.near = dist / 100;
-    camera.far = dist * 10;
-    camera.updateProjectionMatrix();
-    controls.target.copy(target);
+    const c =
+      raw && (k.x !== 1 || k.y !== 1 || k.z !== 1)
+        ? { ...raw, positions: stretched(raw), radius: raw.radius * Math.max(k.x, k.y, k.z) }
+        : raw;
+    rig.fit(c, settings.fit, settings.autoRotate);
   }
 
   return {
@@ -512,7 +416,7 @@ export function createAgnewView(
       if (settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation) aim();
       if (settings.autoRotate !== prev.autoRotate) {
         spinner.rotation.set(0, 0, 0);
-        thrown = null;
+        rig.thrown = null;
       }
       const spinChanged = turnsCurve(settings.autoRotate) !== turnsCurve(prev.autoRotate);
       if (reshaped || ((settings.azimuth !== prev.azimuth || settings.elevation !== prev.elevation || spinChanged) && settings.fit === 'tight')) fit();
@@ -530,20 +434,7 @@ export function createAgnewView(
       return { ...look(), ...angle() };
     },
     fly(right, up, forward) {
-      const size = Math.max(curve?.radius ?? 1, 1e-3) * Math.max(stage.scale.x, stage.scale.y, stage.scale.z);
-      const back = camera.position.clone().sub(controls.target).normalize();
-      const r = new Vector3(0, 1, 0).cross(back).normalize();
-      const u = back.clone().cross(r);
-      const step = r.multiplyScalar(right * size).add(u.multiplyScalar(up * size));
-      camera.position.add(step);
-      controls.target.add(step);
-      const dist = camera.position.distanceTo(controls.target);
-      const ahead = Math.min(forward * size, dist - size * 0.05);
-      camera.position.addScaledVector(back, -ahead);
-      camera.near = Math.max(1e-3, (dist - ahead) / 100);
-      camera.far = (dist - ahead) * 10 + size * 4;
-      camera.updateProjectionMatrix();
-      cameraHeld = false;
+      rig.fly(right, up, forward, Math.max(curve?.radius ?? 1, 1e-3) * Math.max(stage.scale.x, stage.scale.y, stage.scale.z));
     },
     setFraming(box) {
       const before = frameBox();
@@ -558,8 +449,8 @@ export function createAgnewView(
     },
     set playing(on: boolean) {
       playing = on;
-      cameraHeld = !on;
-      controls.autoRotate = settings.autoRotate === 'orbit' && playing;
+      rig.held = !on;
+      rig.setMotion(playing, settings.autoRotate);
     },
     get progress() {
       return time / loopSeconds();
@@ -577,7 +468,7 @@ export function createAgnewView(
       cancelAnimationFrame(raf);
       ro.disconnect();
       disposeBuilt();
-      controls.dispose();
+      rig.dispose();
       composer.dispose();
       target.dispose();
       envMap.dispose();

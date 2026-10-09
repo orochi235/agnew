@@ -36,3 +36,7 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+.ag-motion > .ag-btn {
+  align-self: flex-start;
+}
