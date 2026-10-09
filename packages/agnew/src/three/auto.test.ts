@@ -4,7 +4,7 @@ import { autoBloom, autoLineOpacity, autoLineWidth, coverage } from './auto.js';
 
 const frame = (width: number, height: number) => ({ x: 0, y: 0, width, height });
 const knot = (samples: number) =>
-  evaluate({ version: 1, turns: 1, samples, blocks: [createBlock('torusKnot', { p: 5, q: 72 })] });
+  evaluate({ version: 2, loop: 12, passes: 1, turns: 1, samples, blocks: [createBlock('torusKnot', { p: 5, q: 72 })] });
 
 describe('autoLineWidth', () => {
   it('thins out in a short strip and stops at the usual weight in a window', () => {

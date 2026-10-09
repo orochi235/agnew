@@ -1,4 +1,5 @@
 import { createBlock, type Design } from './design.js';
+import { DEFAULT_LOOP } from './motion.js';
 import type { ParamValues } from './params.js';
 
 export interface Preset {
@@ -9,7 +10,9 @@ export interface Preset {
 }
 
 const design = (turns: number, samples: number, blocks: [string, ParamValues][]): Design => ({
-  version: 1,
+  version: 2,
+  loop: DEFAULT_LOOP,
+  passes: 1,
   turns,
   samples,
   blocks: blocks.map(([kind, params]) => createBlock(kind, params)),

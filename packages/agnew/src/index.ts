@@ -13,6 +13,7 @@ export {
   wrapSphere,
   wrapTorus,
 } from './blocks.js';
+export { type Animator, animate, waveAt } from './animate.js';
 export { arcLengths, indexAtLength } from './arclength.js';
 export { decode, encode, portableDesign, sanitizeDesign } from './codec.js';
 export {
@@ -23,6 +24,9 @@ export {
   evaluate,
   evaluateAt,
   type Mechanism,
+  type Morph,
+  morphTarget,
+  morphWeight,
   newBlockId,
   sampleCount,
   timeSpan,
@@ -39,5 +43,17 @@ export {
   type ParamValue,
   type ParamValues,
 } from './params.js';
+export {
+  DEFAULT_LOOP,
+  EASES,
+  type Ease,
+  type KeysMotion,
+  type Motion,
+  newMotion,
+  sanitizeMotion,
+  WAVE_SHAPES,
+  type WaveMotion,
+  type WaveShape,
+} from './motion.js';
 export { PRESETS, type Preset, presetByName } from './presets.js';
 export type { Vec3 } from './vec.js';

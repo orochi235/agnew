@@ -51,7 +51,7 @@ describe('torusAt', () => {
 
 describe('auto params', () => {
   const design = (patch: Record<string, number | string>) => ({
-    version: 1 as const,
+    version: 2 as const, loop: 12, passes: 1,
     turns: 12,
     samples: 20000,
     blocks: [

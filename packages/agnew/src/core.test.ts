@@ -6,7 +6,7 @@ import { parallelTransport } from './frames.js';
 import { PRESETS } from './presets.js';
 
 const design = (blocks: Design['blocks'], turns = 1, samples = 2000): Design => ({
-  version: 1,
+  version: 2, loop: 12, passes: 1,
   blocks,
   turns,
   samples,

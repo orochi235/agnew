@@ -3,7 +3,7 @@ import { createBlock, evaluate } from '../design.js';
 import { buildRibbon, buildTube, decimate } from './geometry.js';
 import { gradientColors } from './palette.js';
 
-const curve = evaluate({ version: 1, turns: 1, samples: 500, blocks: [createBlock('torusKnot', { p: 2, q: 3 })] });
+const curve = evaluate({ version: 2, loop: 12, passes: 1, turns: 1, samples: 500, blocks: [createBlock('torusKnot', { p: 2, q: 3 })] });
 const colors = gradientColors(curve.count, ['#ff0000', '#0000ff']);
 
 describe('buildTube', () => {
