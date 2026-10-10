@@ -1,0 +1,132 @@
+{
+  "agnew": 1,
+  "name": "Gear train, morphing",
+  "preset": "",
+  "design": {
+    "version": 2,
+    "blocks": [
+      {
+        "kind": "arm",
+        "enabled": true,
+        "params": {
+          "radius": 0.8,
+          "freq": 1,
+          "phase": 0,
+          "tiltX": 0,
+          "tiltY": 0
+        },
+        "motion": {
+          "radius": {
+            "kind": "wave",
+            "shape": "sine",
+            "cycles": 2,
+            "depth": 0.2,
+            "phase": 0
+          }
+        }
+      },
+      {
+        "kind": "arm",
+        "enabled": true,
+        "params": {
+          "radius": 0.4,
+          "freq": -11,
+          "phase": 0,
+          "tiltX": 40,
+          "tiltY": 0
+        },
+        "motion": {
+          "phase": {
+            "kind": "keys",
+            "stops": [
+              {
+                "at": 0,
+                "value": 0
+              },
+              {
+                "at": 0.5,
+                "value": 90
+              },
+              {
+                "at": 1,
+                "value": 0
+              }
+            ],
+            "ease": "ease-in-out"
+          }
+        }
+      },
+      {
+        "kind": "arm",
+        "enabled": true,
+        "params": {
+          "radius": 0.18,
+          "freq": 23,
+          "phase": 0,
+          "tiltX": 85,
+          "tiltY": 30
+        }
+      }
+    ],
+    "turns": 1,
+    "samples": 8000,
+    "loop": 12,
+    "passes": 1,
+    "morph": {
+      "to": {
+        "blocks": [
+          {
+            "kind": "torusKnot",
+            "enabled": true,
+            "params": {
+              "p": 7,
+              "q": 17,
+              "R": 0.7,
+              "r": 0.3,
+              "phase": 0,
+              "unrollU": 0,
+              "unrollV": 0
+            }
+          }
+        ],
+        "turns": 1
+      },
+      "weight": 0.3,
+      "name": "Torus knot",
+      "motion": {
+        "kind": "wave",
+        "shape": "triangle",
+        "cycles": 1,
+        "depth": 0.3,
+        "phase": 0
+      }
+    }
+  },
+  "view": {
+    "style": "neon",
+    "palette": "aurora",
+    "background": "#05060a",
+    "lineWidth": "auto",
+    "lineOpacity": "auto",
+    "tubeRadius": 0.012,
+    "ribbonWidth": 0.035,
+    "ribbonTwist": 40,
+    "bloom": "auto",
+    "layers": {
+      "curve": true,
+      "trace": false,
+      "mechanism": false
+    },
+    "gpu": true,
+    "autoRotate": "orbit",
+    "fit": "orbit",
+    "azimuth": 19,
+    "elevation": 15,
+    "shape": "free",
+    "ratioW": 30,
+    "ratioH": 1,
+    "stretch": false,
+    "hue": 0,
+    "filter": "none"
+  }
+}
