@@ -131,10 +131,6 @@ that is long relative to its size.
 
 ## Not built yet
 
-- `wave` motions are built from a blits `patch` in `animate.ts` until blits
-  releases its own `wave` patch (blits branch `wave`); then `animate.ts` should
-  take it from there.
-
 - Tube and ribbon meshes rebuild on the main thread. The heaviest preset takes
   about 40 ms per rebuild, so slider drags on it run at roughly 25 fps. A Web
   Worker would fix that.

@@ -1,6 +1,6 @@
-import { type Channel, keys, type Mix, mix, type Patch, patch, sum } from '@msb235/blits';
+import { type Channel, keys, type Mix, mix, type Patch, sum, wave } from '@msb235/blits';
 import type { Block, Design } from './design.js';
-import type { Motion, WaveMotion, WaveShape } from './motion.js';
+import type { Motion } from './motion.js';
 
 /** A design over time. */
 export interface Animator {
@@ -88,27 +88,8 @@ function patchFor(m: Mover, loopMs: number, kit: Record<string, Channel<number>>
       { ease: m.motion.ease, kit: own },
     );
   }
-  return wavePatch(m.channel, m.motion, loopMs, own);
-}
-
-// blits gains a `wave` patch in its next release (branch `wave`); this stands
-// in for it until agnew can take that from npm.
-function wavePatch(channel: string, w: WaveMotion, loopMs: number, kit: Record<string, Channel<number>>) {
-  return patch<string, Pose>(
-    loopMs,
-    (phase) => ({ [channel]: w.depth * waveAt(w.shape, phase * w.cycles + w.phase) }),
-    { kit },
-  );
-}
-
-/** The unit wave, -1..1 at `x` cycles: starts at 0 and rises (square: +1 for
- *  the first half). */
-export function waveAt(shape: WaveShape, x: number): number {
-  const f = x - Math.floor(x);
-  if (shape === 'sine') return Math.sin(f * Math.PI * 2);
-  if (shape === 'triangle') return f < 0.25 ? 4 * f : f < 0.75 ? 2 - 4 * f : 4 * f - 4;
-  if (shape === 'saw') return f < 0.5 ? 2 * f : 2 * f - 2;
-  return f < 0.5 ? 1 : -1;
+  const { shape, cycles, phase, depth } = m.motion;
+  return wave<string, Pose>(loopMs, { shape, cycles, phase, depth: { [m.channel]: depth }, kit: own });
 }
 
 /** The design with every moving value read from `read`, and no motions. */

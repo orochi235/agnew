@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { animate, waveAt } from './animate.js';
+import { animate } from './animate.js';
 import { decode, encode, portableDesign, sanitizeDesign } from './codec.js';
 import { createBlock, type Design, evaluate } from './design.js';
 
@@ -14,19 +14,6 @@ const base = (extra: Partial<Design> = {}): Design => ({
 });
 
 const radiusAt = (d: Design, seconds: number) => animate(d).at(seconds).blocks[0].params.radius as number;
-
-describe('waveAt', () => {
-  it('starts at 0 and rises, for every shape but square', () => {
-    expect(waveAt('sine', 0.25)).toBeCloseTo(1, 12);
-    expect(waveAt('triangle', 0.25)).toBeCloseTo(1, 12);
-    expect(waveAt('triangle', 0.75)).toBeCloseTo(-1, 12);
-    expect(waveAt('saw', 0.25)).toBeCloseTo(0.5, 12);
-    expect(waveAt('saw', 0.75)).toBeCloseTo(-0.5, 12);
-    expect(waveAt('square', 0.1)).toBe(1);
-    expect(waveAt('square', 0.6)).toBe(-1);
-    expect(waveAt('sine', -0.75)).toBeCloseTo(1, 12);
-  });
-});
 
 describe('animate', () => {
   it('leaves a still design still, with no motions on it', () => {

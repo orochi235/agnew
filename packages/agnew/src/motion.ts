@@ -1,4 +1,6 @@
-export type WaveShape = 'sine' | 'triangle' | 'saw' | 'square';
+import type { WaveShape } from '@msb235/blits';
+
+export type { WaveShape };
 export const WAVE_SHAPES: readonly WaveShape[] = ['sine', 'triangle', 'saw', 'square'];
 
 /** CSS's named easing curves, which blits reads as data. */
