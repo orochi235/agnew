@@ -91,11 +91,10 @@ A viewport and a sidebar: preset picker, global settings (style, layers,
 sampling, colors), a stack editor (one card per block with its own
 `ControlPanel`; add, remove, reorder, enable), and export buttons. The whole
 design and view settings live in the URL hash, so any state is a shareable
-link.
+link. Undo runs on labkit's trial history, one step per burst of edits.
 
 ## Not built
 
 - Tube/ribbon meshes rebuild on the main thread rather than in a Web Worker,
   which also caps how smoothly a moving tube plays.
-- No undo; the URL hash and browser history stand in for it.
 - No node-graph editor.

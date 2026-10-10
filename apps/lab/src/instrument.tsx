@@ -4,7 +4,7 @@ import { ExportPanel } from './panels/ExportPanel';
 import { LookPanel } from './panels/LookPanel';
 import { PresetPanel } from './panels/PresetPanel';
 import { Picture } from './Picture';
-import type { AgnewState } from './session';
+import { type AgnewState, bindEdits, EDIT } from './session';
 import { initialState } from './state';
 
 /** One curve and its view. Its state opens on the URL hash, which the picture
@@ -12,8 +12,12 @@ import { initialState } from './state';
 export const agnewInstrument = defineInstrument<AgnewState, Record<string, never>>({
   name: 'agnew',
   defaultConfig: () => ({}),
-  initialState: () => ({ ...initialState(), playing: true }),
-  render: () => <Picture />,
+  initialState,
+  undo: { snapshotOn: [EDIT], maxDepth: 100 },
+  render: (ctx) => {
+    bindEdits(ctx.trial.id, ctx.emit);
+    return <Picture />;
+  },
   chrome: [
     { id: 'agnew-preset', region: 'sidebar', item: { title: 'Preset', body: <PresetPanel /> } },
     { id: 'agnew-look', region: 'sidebar', item: { title: 'Look', body: <LookPanel /> } },

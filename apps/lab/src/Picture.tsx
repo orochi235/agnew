@@ -24,6 +24,8 @@ export function Picture() {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [area, setArea] = useState({ width: 0, height: 0 });
+  // Not trial state, so undo never starts or stops playback.
+  const [playing, setPlaying] = useState(true);
 
   useEffect(() => {
     const view = createAgnewView(canvasRef.current!, {
@@ -34,7 +36,6 @@ export function Picture() {
         setState((s) => (s.view.autoRotate === 'orbit' ? { ...s, view: { ...s.view, autoRotate: 'off' } } : s)),
       onCameraAngle: (angle) => setState((s) => ({ ...s, view: { ...s.view, ...angle } })),
     });
-    view.playing = state.playing;
     viewRef.current = view;
     requestAnimationFrame(() => view.fit());
     // The view is created once; later changes flow through the effects below.
@@ -58,10 +59,9 @@ export function Picture() {
   useEffect(() => viewRef.current?.setSettings(state.view), [state.view]);
   useEffect(() => viewRef.current?.fit(), [state.view.fit]);
   useEffect(() => {
-    if (viewRef.current) viewRef.current.playing = state.playing;
-  }, [state.playing]);
+    if (viewRef.current) viewRef.current.playing = playing;
+  }, [playing]);
 
-  const setPlaying = useCallback((playing: boolean) => setState((s) => ({ ...s, playing })), [setState]);
   const stopRotating = useCallback(
     () => setState((s) => (s.view.autoRotate === 'orbit' ? { ...s, view: { ...s.view, autoRotate: 'off' } } : s)),
     [setState],
@@ -73,11 +73,11 @@ export function Picture() {
       const t = e.target as HTMLElement;
       if (t.closest('input, textarea, select, button, [contenteditable]')) return;
       e.preventDefault();
-      setState((s) => ({ ...s, playing: !s.playing }));
+      setPlaying((p) => !p);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setState]);
+  }, []);
   useEffect(() => {
     const id = setTimeout(() => writeHash(state), 250);
     return () => clearTimeout(id);
@@ -94,7 +94,7 @@ export function Picture() {
             {!state.preset && <div className="ag-badge">custom</div>}
             <Transport
               view={viewRef}
-              playing={state.playing}
+              playing={playing}
               onPlayingChange={setPlaying}
               scrubbable={state.view.layers.trace || state.view.layers.mechanism || moves(state.design)}
             />

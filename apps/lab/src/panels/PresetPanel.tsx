@@ -19,7 +19,7 @@ export function PresetPanel() {
   const [note, setNote] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const replace = (next: LabState) => setState((s) => ({ ...next, playing: s.playing }));
+  const replace = (next: LabState) => setState(next);
   const loadPreset = (value: string) => {
     setNote('');
     if (value.startsWith(SAVED_PREFIX)) {

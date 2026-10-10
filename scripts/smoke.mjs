@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 // Drives the lab like a person would and fails on anything broken: the canvas
 // draws, presets and styles switch, layers toggle, blocks add and remove,
-// the URL keeps the state, and both exports download. Needs the dev server
-// and a built library (`npm run smoke` builds it).
+// undo steps back, the URL keeps the state, and both exports download. Needs
+// the dev server and a built library (`npm run smoke` builds it).
 //
-//   node scripts/smoke.mjs [--url http://localhost:5190]
+//   node scripts/smoke.mjs [--url http://localhost:5190] [--only <text>]...
+//
+// --only runs just the steps whose names contain the text, after the first,
+// which loads the lab.
 
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
@@ -12,7 +15,9 @@ import { chromium } from 'playwright-core';
 import { decode, encode, PRESETS, portableDesign } from '../packages/agnew/dist/index.js';
 import { DEFAULT_VIEW } from '../packages/agnew/dist/three/index.js';
 
-const { values } = parseArgs({ options: { url: { type: 'string', default: 'http://localhost:5190' } } });
+const { values } = parseArgs({
+  options: { url: { type: 'string', default: 'http://localhost:5190' }, only: { type: 'string', multiple: true } },
+});
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal'] });
 // Retina scale: large exports only fail when device pixels multiply the size.
@@ -143,6 +148,23 @@ step('edits a block parameter from its slider', async () => {
   await page.keyboard.press('ArrowRight');
   await page.waitForTimeout(500);
   if ((await hash()) === before) fail('slider edit did not reach the URL');
+});
+
+step('undoes a slider drag as one step, and redoes it', async () => {
+  const before = await hash();
+  const slider = page.locator('.ag-card').first().getByRole('slider').first();
+  await slider.focus();
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(700);
+  const after = await hash();
+  if (after === before) fail('slider edit did not reach the URL');
+  // labkit takes Mod+Z only with focus inside the trial, as it is here on the slider.
+  await page.keyboard.press('ControlOrMeta+z');
+  await page.waitForTimeout(500);
+  if ((await hash()) !== before) fail('Mod+Z did not undo the whole drag');
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await page.waitForTimeout(500);
+  if ((await hash()) !== after) fail('Redo did not restore the drag');
 });
 
 step('restores state from the URL', async () => {
@@ -385,14 +407,15 @@ step('records a video', async () => {
   if (bytes < 20_000) fail(`video is only ${bytes} bytes`);
 });
 
+const chosen = values.only ? steps.filter(([name], i) => i === 0 || values.only.some((t) => name.includes(t))) : steps;
 let failed = 0;
-for (const [i, [name, fn]] of steps.entries()) {
+for (const [i, [name, fn]] of chosen.entries()) {
   try {
     await fn();
-    console.log(`${String(i + 1).padStart(2)}/${steps.length} ok    ${name}`);
+    console.log(`${String(i + 1).padStart(2)}/${chosen.length} ok    ${name}`);
   } catch (e) {
     failed++;
-    console.log(`${String(i + 1).padStart(2)}/${steps.length} FAIL  ${name}: ${e.message}`);
+    console.log(`${String(i + 1).padStart(2)}/${chosen.length} FAIL  ${name}: ${e.message}`);
   }
 }
 if (errors.length) {

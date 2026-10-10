@@ -126,6 +126,11 @@ The lab saves presets (design plus look) by name in the browser, where they
 join the preset dropdown, or as `.agnew.json` files to keep or share.
 `presets/` holds files worth keeping; open one with **Load file**.
 
+Undo and redo are in the lab's toolbar (Mod+Z, Mod+Shift+Z) and cover the
+design and the look, not playback. Edits less than half a second apart are one
+step, so a slider drag undoes as a whole. The history lasts until the page
+reloads.
+
 In the neon style, lines add light where they cross, so the view dims a curve
 that is long relative to its size.
 
@@ -134,6 +139,5 @@ that is long relative to its size.
 - Tube and ribbon meshes rebuild on the main thread. The heaviest preset takes
   about 40 ms per rebuild, so slider drags on it run at roughly 25 fps. A Web
   Worker would fix that.
-- No undo; the URL hash holds the whole state, so a link is a snapshot.
 - No node-graph editor. The stack is stored so that a `@weasel-js/diagram`
   view could be added over the same data.
