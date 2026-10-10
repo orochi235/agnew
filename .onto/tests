@@ -1,6 +1,6 @@
 enlist: 6
 plugin: node
-# The test script, vitest run in packages/agnew, as the binary: npm does not pass
-# onto's reporter fd 3. Keep it in step with packages/agnew/package.json.
-run: node_modules/.bin/vitest run --root packages/agnew
+# Every workspace's tests (the projects in vitest.config.ts), as the binary: npm does not pass
+# onto's reporter fd 3. Keep the projects in step with the workspaces.
+run: node_modules/.bin/vitest run
 runner: vitest
