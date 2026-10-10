@@ -33,6 +33,6 @@
     "vitest": "^5.0.1"
   },
   "dependencies": {
-    "@msb235/blits": "^0.7.1"
+    "@msb235/blits": "0.8.1"
   }
 }
