@@ -79,7 +79,8 @@ async function inked() {
 
 const hash = () => page.evaluate(() => location.hash);
 const selects = () => page.locator('.ag-panel select');
-const blockCards = () => page.locator('.ag-card');
+/** One drag handle per block card. */
+const blockCards = () => page.getByRole('button', { name: /^Drag to reorder / });
 
 step('loads and draws', async () => {
   await page.goto(values.url);
@@ -135,14 +136,14 @@ step('adds, disables and removes a block', async () => {
   await page.getByRole('button', { name: 'Add block' }).click();
   if ((await blockCards().count()) !== n + 1) fail('block was not added');
   if (!(await page.locator('.ag-badge').isVisible())) fail('custom badge missing after edit');
-  await page.getByRole('checkbox', { name: 'Enable Precess' }).uncheck();
-  await page.locator('.ag-card').last().getByRole('button', { name: 'Remove' }).click();
+  await page.getByRole('checkbox', { name: 'Show Precess' }).uncheck();
+  await page.getByRole('button', { name: 'Remove Precess' }).click();
   if ((await blockCards().count()) !== n) fail('block was not removed');
 });
 
 step('edits a block parameter from its slider', async () => {
   const before = await hash();
-  const slider = page.locator('.ag-card').first().getByRole('slider').first();
+  const slider = page.locator('.ag-stack__list').getByRole('slider').first();
   await slider.focus();
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
@@ -152,7 +153,7 @@ step('edits a block parameter from its slider', async () => {
 
 step('undoes a slider drag as one step, and redoes it', async () => {
   const before = await hash();
-  const slider = page.locator('.ag-card').first().getByRole('slider').first();
+  const slider = page.locator('.ag-stack__list').getByRole('slider').first();
   await slider.focus();
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
   await page.waitForTimeout(700);
