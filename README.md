@@ -139,9 +139,5 @@ that is long relative to its size.
 - Tube and ribbon meshes rebuild on the main thread. The heaviest preset takes
   about 40 ms per rebuild, so slider drags on it run at roughly 25 fps. A Web
   Worker would fix that.
-- Mod+Z only undoes with focus inside the lab's trial, and in a text field it
-  undoes the lab in place of the typing. Both come from labkit's shortcut handling
-  and are to be fixed there. Once a `@weasel-js/labkit` release has the fix,
-  the lab takes it, and the smoke test's undo step can press Mod+Z from the page.
 - No node-graph editor. The stack is stored so that a `@weasel-js/diagram`
   view could be added over the same data.

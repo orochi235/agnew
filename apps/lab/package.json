@@ -9,10 +9,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@weasel-js/core": "^1.9.2",
-    "@weasel-js/labkit": "^1.9.2",
-    "@weasel-js/theme": "^1.9.2",
-    "@weasel-js/ui": "^1.9.2",
+    "@weasel-js/core": "^1.9.4",
+    "@weasel-js/labkit": "^1.9.4",
+    "@weasel-js/theme": "^1.9.4",
+    "@weasel-js/ui": "^1.9.4",
     "agnew": "^0.0.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

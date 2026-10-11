@@ -159,7 +159,7 @@ step('undoes a slider drag as one step, and redoes it', async () => {
   await page.waitForTimeout(700);
   const after = await hash();
   if (after === before) fail('slider edit did not reach the URL');
-  // labkit takes Mod+Z only with focus inside the trial, as it is here on the slider.
+  await page.evaluate(() => document.activeElement.blur());
   await page.keyboard.press('ControlOrMeta+z');
   await page.waitForTimeout(500);
   if ((await hash()) !== before) fail('Mod+Z did not undo the whole drag');
