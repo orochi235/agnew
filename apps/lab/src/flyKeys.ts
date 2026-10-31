@@ -52,12 +52,13 @@ export function useFlyKeys(view: RefObject<AgnewView | null>, onFly: () => void)
       held.delete(e.code);
     };
     const clear = () => held.clear();
-    window.addEventListener('keydown', down);
+    // Captured, so the transport's keys see R as taken rather than flipping direction.
+    window.addEventListener('keydown', down, true);
     window.addEventListener('keyup', up);
     window.addEventListener('blur', clear);
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener('keydown', down);
+      window.removeEventListener('keydown', down, true);
       window.removeEventListener('keyup', up);
       window.removeEventListener('blur', clear);
     };

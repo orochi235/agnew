@@ -11,5 +11,6 @@ export {
   STYLE_DEFAULTS,
   STYLES,
   type Style,
+  type ViewClock,
   type ViewSettings,
 } from './view.js';

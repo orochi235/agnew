@@ -288,12 +288,16 @@ step('pauses, scrubs, and stops auto-rotating once the view is grabbed', async (
   const b = await canvas.screenshot();
   if ((await pngDiff(a, b)) > 0.05) fail('picture kept changing while paused');
 
-  await page.getByRole('slider', { name: 'Time in the loop' }).fill('0.6');
+  const scrub = page.getByRole('slider', { name: 'Position' });
+  await scrub.focus();
+  await page.keyboard.press('Home');
   await page.waitForTimeout(300);
   const c = await canvas.screenshot();
   if ((await pngDiff(b, c)) < 0.05) fail('scrubbing did not move the pen');
-  const held = Number(await page.getByRole('slider', { name: 'Time in the loop' }).inputValue());
-  if (Math.abs(held - 0.6) > 0.01) fail(`scrubber drifted to ${held} while paused`);
+  const at = await scrub.getAttribute('aria-valuenow');
+  await page.waitForTimeout(500);
+  const held = await scrub.getAttribute('aria-valuenow');
+  if (held !== at) fail(`scrubber drifted from ${at} to ${held} while paused`);
 
   await canvas.click(PICTURE_SPOT);
   await page.keyboard.press('Space');

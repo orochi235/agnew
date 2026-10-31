@@ -14,6 +14,8 @@ export const agnewInstrument = defineInstrument<AgnewState, Record<string, never
   defaultConfig: () => ({}),
   initialState,
   undo: { snapshotOn: [EDIT], maxDepth: 100 },
+  // The picture sets its duration to the design's loop.
+  clock: { loop: true, rate: 1 },
   render: (ctx) => {
     bindEdits(ctx.trial.id, ctx.emit);
     return <Picture />;

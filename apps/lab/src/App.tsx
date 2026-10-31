@@ -16,6 +16,7 @@ export function App() {
       title="agnewgraph (rip ted)"
       mode="dark"
       present={startsPresenting(location.search)}
+      transport={false}
       addTrial={false}
       zoom={false}
       suppress={SUPPRESS}

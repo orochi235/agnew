@@ -1,12 +1,10 @@
-import { usePresentation } from '@weasel-js/labkit';
-import { moves } from 'agnew';
+import { TrialTransport, usePresentation, useTrialClock } from '@weasel-js/labkit';
 import { createAgnewView, frameAspect, shapeBox } from 'agnew/three';
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
 import { ArtLoupe } from './ArtLoupe';
 import { useFlyKeys } from './flyKeys';
 import { useAgnew, useAgnewView } from './session';
 import { writeHash } from './state';
-import { Transport } from './Transport';
 
 /** Dims everything outside the frame's shape. Its geometry is live, so it
  *  arrives as custom properties rather than a class. */
@@ -24,8 +22,7 @@ export function Picture() {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [area, setArea] = useState({ width: 0, height: 0 });
-  // Not trial state, so undo never starts or stops playback.
-  const [playing, setPlaying] = useState(true);
+  const clock = useTrialClock();
 
   useEffect(() => {
     const view = createAgnewView(canvasRef.current!, {
@@ -59,25 +56,17 @@ export function Picture() {
   useEffect(() => viewRef.current?.setSettings(state.view), [state.view]);
   useEffect(() => viewRef.current?.fit(), [state.view.fit]);
   useEffect(() => {
-    if (viewRef.current) viewRef.current.playing = playing;
-  }, [playing]);
+    if (viewRef.current) viewRef.current.clock = clock;
+  }, [clock]);
+  useEffect(() => {
+    if (clock) clock.duration = state.design.loop * 1000;
+  }, [clock, state.design.loop]);
 
   const stopRotating = useCallback(
     () => setState((s) => (s.view.autoRotate === 'orbit' ? { ...s, view: { ...s.view, autoRotate: 'off' } } : s)),
     [setState],
   );
   useFlyKeys(viewRef, stopRotating);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Space' || e.repeat) return;
-      const t = e.target as HTMLElement;
-      if (t.closest('input, textarea, select, button, [contenteditable]')) return;
-      e.preventDefault();
-      setPlaying((p) => !p);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
   useEffect(() => {
     const id = setTimeout(() => writeHash(state), 250);
     return () => clearTimeout(id);
@@ -92,12 +81,7 @@ export function Picture() {
           <div className="ag-viewport">
             {aspect && <ShapeOutline box={shapeBox({ x: 0, y: 0, ...area }, aspect)} />}
             {!state.preset && <div className="ag-badge">custom</div>}
-            <Transport
-              view={viewRef}
-              playing={playing}
-              onPlayingChange={setPlaying}
-              scrubbable={state.view.layers.trace || state.view.layers.mechanism || moves(state.design)}
-            />
+            <TrialTransport keys className="ag-transport" />
           </div>
           <ArtLoupe canvasRef={canvasRef} />
         </>

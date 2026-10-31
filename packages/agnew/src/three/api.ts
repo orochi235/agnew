@@ -1,4 +1,5 @@
 import type { Design } from '../design.js';
+import type { ViewClock } from './clock.js';
 import type { RecordOptions } from './export.js';
 import type { ViewSettings } from './settings.js';
 
@@ -18,11 +19,14 @@ export interface AgnewView {
   resolved(): { lineWidth: number; lineOpacity: number; bloom: number; azimuth: number; elevation: number };
   /** Back to the start of the loop. */
   restartTrace(): void;
-  /** Whether the clock, and with it the pen, any motion and auto-rotation, is running. */
+  /** Whether the clock, and with it the pen, any motion and auto-rotation, is running.
+   *  With a `clock` set, it follows that clock's rate, and a write is overruled. */
   playing: boolean;
   /** How far through the design's loop the clock is, 0–1. Setting it moves
    *  the clock there. */
   progress: number;
+  /** A clock to play on in place of the view's own; `null` for its own. */
+  clock: ViewClock | null;
   /**
    * Compose for a box smaller than the canvas, in CSS pixels. The picture
    * keeps the position and scale it had at that size and the canvas paints

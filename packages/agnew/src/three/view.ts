@@ -23,6 +23,7 @@ import { type Curve, type Design, evaluate, evaluateAt, sampleCount, timeSpan } 
 import { AUTO } from '../params.js';
 import type { AgnewView } from './api.js';
 import { createCameraRig } from './camera.js';
+import { loopTime, type ViewClock } from './clock.js';
 import { autoBloom, autoLineOpacity, autoLineWidth, coverage } from './auto.js';
 import { type Built, buildCurve, neonExposure } from './build.js';
 import { COLOR_SHADER, filterIndex } from './color.js';
@@ -42,6 +43,7 @@ import { spin, turnsCurve } from './rotation.js';
 import { DEFAULT_VIEW, numberOr, type ViewSettings } from './settings.js';
 
 export type { AgnewView } from './api.js';
+export type { ViewClock } from './clock.js';
 export type { RecordOptions } from './export.js';
 export { DEFAULT_VIEW, STYLE_DEFAULTS, STYLES, type Style, type ViewSettings } from './settings.js';
 
@@ -76,6 +78,12 @@ export function createAgnewView(
   );
   const { camera } = rig;
   let playing = true;
+  let clock: ViewClock | null = null;
+  const setPlaying = (on: boolean) => {
+    playing = on;
+    rig.held = !on;
+    rig.setMotion(playing, settings.autoRotate);
+  };
   const aim = () => rig.aim(angle());
 
   const pmrem = new PMREMGenerator(renderer);
@@ -101,9 +109,7 @@ export function createAgnewView(
     renderFrame,
     lines: () => built?.lineMaterials.map((material, i) => ({ material, width: built!.baseWidths[i] })) ?? [],
     setDotScale: (r) => mechanism.setDotScale(r),
-    restart: () => {
-      time = 0;
-    },
+    restart: () => seekTime(0),
   });
   composer.addPass(new OutputPass());
   const colorPass = new ShaderPass(COLOR_SHADER);
@@ -329,6 +335,11 @@ export function createAgnewView(
 
   const loopSeconds = () => Math.max(design?.loop ?? 1, 1e-3);
 
+  function seekTime(seconds: number) {
+    if (clock) clock.seek(seconds * 1000);
+    else time = seconds;
+  }
+
   let last = performance.now();
   let raf = 0;
   function frame(now: number) {
@@ -347,7 +358,10 @@ export function createAgnewView(
       }
     }
     const s = settings;
-    if (playing) time = (time + dt) % loopSeconds();
+    if (clock) {
+      if ((clock.rate !== 0) !== playing) setPlaying(clock.rate !== 0);
+      time = loopTime(clock.elapsed, loopSeconds());
+    } else if (playing) time = (time + dt) % loopSeconds();
     if (animator?.moving && time !== drawnAt) move();
     const passes = Math.max(1, design?.passes ?? 1);
     const pass = (time / loopSeconds()) * passes;
@@ -448,19 +462,23 @@ export function createAgnewView(
       return playing;
     },
     set playing(on: boolean) {
-      playing = on;
-      rig.held = !on;
-      rig.setMotion(playing, settings.autoRotate);
+      setPlaying(on);
     },
     get progress() {
       return time / loopSeconds();
     },
     set progress(u: number) {
-      time = Math.min(1, Math.max(0, u)) * loopSeconds();
-      if (time >= loopSeconds()) time = 0;
+      const t = Math.min(1, Math.max(0, u)) * loopSeconds();
+      seekTime(t >= loopSeconds() ? 0 : t);
+    },
+    get clock() {
+      return clock;
+    },
+    set clock(c: ViewClock | null) {
+      clock = c;
     },
     restartTrace() {
-      time = 0;
+      seekTime(0);
     },
     exportPNG: (scale) => exporter.exportPNG(scale),
     record: (seconds, options) => exporter.record(seconds, options),
