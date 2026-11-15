@@ -108,12 +108,15 @@ export interface Curve {
   length: number;
 }
 
+/** The most points any curve is sampled at, whether its count is given or `'auto'`. */
+export const MAX_SAMPLES = 150_000;
+
 /** Points to sample: the design's own count, or for `'auto'` about 300 per
  *  curve radius of length, measured from a coarse pass. */
 export function sampleCount(design: Design, context: EvalContext = {}): number {
-  if (design.samples !== AUTO) return Math.max(2, Math.floor(design.samples));
+  if (design.samples !== AUTO) return Math.min(MAX_SAMPLES, Math.max(2, Math.floor(design.samples)));
   const probe = evaluate({ ...design, morph: undefined, samples: 3000 }, context);
-  return Math.round(Math.min(150_000, Math.max(2000, (probe.length / Math.max(probe.radius, 1e-6)) * 300)));
+  return Math.round(Math.min(MAX_SAMPLES, Math.max(2000, (probe.length / Math.max(probe.radius, 1e-6)) * 300)));
 }
 
 /** The design `morph` blends toward, as a design of its own. */

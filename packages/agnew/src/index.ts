@@ -16,7 +16,7 @@ export {
 export { waveAt } from '@msb235/blits';
 export { type Animator, animate, moves } from './animate.js';
 export { arcLengths, indexAtLength } from './arclength.js';
-export { decode, encode, portableDesign, sanitizeDesign } from './codec.js';
+export { decode, encode, MAX_BLOCKS, portableDesign, sanitizeDesign } from './codec.js';
 export {
   type Block,
   type Curve,
@@ -27,6 +27,7 @@ export {
   type Mechanism,
   type Morph,
   morphTarget,
+  MAX_SAMPLES,
   morphWeight,
   newBlockId,
   sampleCount,

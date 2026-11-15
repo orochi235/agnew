@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { arcLengths, indexAtLength } from './arclength.js';
-import { decode, encode, portableDesign, sanitizeDesign } from './codec.js';
-import { createBlock, type Design, evaluate, evaluateAt } from './design.js';
+import { decode, encode, MAX_BLOCKS, portableDesign, sanitizeDesign } from './codec.js';
+import { createBlock, type Design, evaluate, evaluateAt, MAX_SAMPLES, sampleCount } from './design.js';
 import { parallelTransport } from './frames.js';
 import { PRESETS } from './presets.js';
 
@@ -133,6 +133,21 @@ describe('codec', () => {
     expect(back.blocks[1].params.axis).toBe('x');
     expect(back.turns).toBe(0.01);
     expect(sanitizeDesign('garbage')).toBeNull();
+  });
+
+  it('refuses a design from an unknown version', () => {
+    const blocks = [{ kind: 'arm' }];
+    expect(sanitizeDesign({ version: 3, blocks })).toBeNull();
+    expect(sanitizeDesign({ version: '2', blocks })).toBeNull();
+    expect(sanitizeDesign({ version: 1, blocks })).not.toBeNull();
+    expect(sanitizeDesign({ blocks })).not.toBeNull();
+  });
+
+  it('bounds the work a design can ask for', () => {
+    const back = sanitizeDesign({ blocks: Array.from({ length: 1000 }, () => ({ kind: 'arm' })), samples: 1e9 })!;
+    expect(back.blocks).toHaveLength(MAX_BLOCKS);
+    expect(back.samples).toBe(MAX_SAMPLES);
+    expect(sampleCount({ ...back, samples: 1e9 })).toBe(MAX_SAMPLES);
   });
 });
 

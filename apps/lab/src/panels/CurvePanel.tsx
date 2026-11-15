@@ -1,5 +1,5 @@
 import { ControlPanel, f, isAuto, resolveConfigSchema } from '@weasel-js/labkit';
-import { AUTO, type Design } from 'agnew';
+import { AUTO, type Design, MAX_SAMPLES } from 'agnew';
 import { useAgnew } from '../session';
 import { StackEditor } from '../StackEditor';
 import { MorphEditor } from './MorphEditor';
@@ -18,7 +18,7 @@ const curveSchema = resolveConfigSchema(
     passes: f.number(1).range(1, 20).step(1).label('Pen passes').describe('Times the pen draws the curve per loop.').manual(),
     samples: f
       .number(8000)
-      .range(500, 150000)
+      .range(500, MAX_SAMPLES)
       .step(500)
       .label('Samples')
       .describe('Click the label for auto: enough points that each segment is short beside the curve.'),

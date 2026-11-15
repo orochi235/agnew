@@ -1,9 +1,12 @@
 import { BLOCK_KINDS, type BlockKind } from './blocks.js';
-import { type Block, type Design, newBlockId } from './design.js';
+import { type Block, type Design, MAX_SAMPLES, newBlockId } from './design.js';
 import { DEFAULT_LOOP, type Motion, sanitizeMotion } from './motion.js';
 import { AUTO, defaultParams, type ParamValue } from './params.js';
 
 const kinds = new Map(BLOCK_KINDS.map((k) => [k.kind, k]));
+
+/** The most blocks a design's stack, or its morph target's, may hold. */
+export const MAX_BLOCKS = 64;
 
 /** Any JSON value as a URL-safe base64 string. */
 export function encode(value: unknown): string {
@@ -27,6 +30,7 @@ function sanitizeBlocks(raw: unknown): Block[] {
   if (!Array.isArray(raw)) return [];
   const blocks: Block[] = [];
   for (const item of raw) {
+    if (blocks.length === MAX_BLOCKS) break;
     if (!isRecord(item) || typeof item.kind !== 'string') continue;
     const kind = kinds.get(item.kind);
     if (!kind) continue;
@@ -61,16 +65,19 @@ const num = (v: unknown, def: number, min: number, max: number) =>
 /**
  * A design from untrusted data (a URL, a file): unknown block kinds and
  * wrongly typed params or motions are dropped, missing params take their
- * defaults, and every block gets a fresh id. A version 1 design loads as
- * one with no motion. Returns `null` when nothing usable is there.
+ * defaults, blocks past `MAX_BLOCKS` are cut, and every block gets a fresh
+ * id. A version 1 design loads as one with no motion. Returns `null` when
+ * nothing usable is there, or when the design is from a version this one
+ * does not know.
  */
 export function sanitizeDesign(value: unknown): Design | null {
   if (!isRecord(value) || !Array.isArray(value.blocks)) return null;
+  if (value.version !== undefined && value.version !== 1 && value.version !== 2) return null;
   const design: Design = {
     version: 2,
     blocks: sanitizeBlocks(value.blocks),
     turns: num(value.turns, 1, 0.01, 1000),
-    samples: value.samples === AUTO ? AUTO : Math.round(num(value.samples, 8000, 2, 1_000_000)),
+    samples: value.samples === AUTO ? AUTO : Math.round(num(value.samples, 8000, 2, MAX_SAMPLES)),
     loop: num(value.loop, DEFAULT_LOOP, 0.5, 600),
     passes: Math.round(num(value.passes, 1, 1, 100)),
   };
