@@ -143,6 +143,31 @@ describe('codec', () => {
     expect(sanitizeDesign({ blocks })).not.toBeNull();
   });
 
+  it('describes what it drops or refuses', () => {
+    const dropped: string[] = [];
+    sanitizeDesign(
+      {
+        blocks: [
+          { kind: 'nope' },
+          { kind: 'arm', params: { radius: 'big', wobble: 2 }, motion: { radius: { kind: 'spin' } } },
+        ],
+      },
+      dropped,
+    );
+    expect(dropped).toEqual(['block “nope”', 'arm’s wobble', 'arm’s radius', 'the motion on arm’s radius']);
+    const refused: string[] = [];
+    expect(sanitizeDesign({ version: 3, blocks: [] }, refused)).toBeNull();
+    expect(refused).toEqual(['a version 3 design']);
+  });
+
+  it('drops nothing from a design it wrote itself', () => {
+    for (const p of PRESETS) {
+      const dropped: string[] = [];
+      sanitizeDesign(decode(encode(portableDesign(p.design()))), dropped);
+      expect(dropped, p.name).toEqual([]);
+    }
+  });
+
   it('bounds the work a design can ask for', () => {
     const back = sanitizeDesign({ blocks: Array.from({ length: 1000 }, () => ({ kind: 'arm' })), samples: 1e9 })!;
     expect(back.blocks).toHaveLength(MAX_BLOCKS);

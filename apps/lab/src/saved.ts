@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { type LabState, restore, snapshot } from './state';
+import { droppedNotice, type LabState, restore, snapshot } from './state';
 
 /** Built-in presets are addressed by name; saved ones by this prefix plus theirs. */
 export const SAVED_PREFIX = 'saved:';
@@ -60,16 +60,22 @@ export function presetFile(name: string, state: LabState): Blob {
   });
 }
 
-/** A preset from a file's text; throws with a readable message when it is not one. */
-export function parsePresetFile(text: string): { name: string; state: LabState } {
+/** A preset from a file's text, and a sentence on anything it left out; throws
+ *  with a readable message when it is not one. */
+export function parsePresetFile(text: string): { name: string; state: LabState; notice: string } {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
   } catch {
     throw new Error('That file is not JSON.');
   }
-  const state = restore(raw);
-  if (!state) throw new Error('That file has no agnew design in it.');
+  const dropped: string[] = [];
+  const state = restore(raw, dropped);
+  if (!state) {
+    throw new Error(
+      dropped.length > 0 ? `That file’s design can’t be read here: ${dropped.join(', ')}.` : 'That file has no agnew design in it.',
+    );
+  }
   const name = typeof (raw as { name?: unknown }).name === 'string' ? (raw as { name: string }).name : 'Imported';
-  return { name, state };
+  return { name, state, notice: droppedNotice('the file', dropped) };
 }

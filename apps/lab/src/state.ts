@@ -7,6 +7,20 @@ export interface LabState {
   view: ViewSettings;
 }
 
+/** What opening the URL's state left out, for the lab to say once; empty when nothing was. */
+let openingNotice = '';
+
+export function takeOpeningNotice(): string {
+  const n = openingNotice;
+  openingNotice = '';
+  return n;
+}
+
+/** A sentence telling the person what loading `source` left out, or empty. */
+export function droppedNotice(source: string, dropped: readonly string[]): string {
+  return dropped.length > 0 ? `Left out of ${source}, which this agnew can’t read: ${dropped.join(', ')}.` : '';
+}
+
 export function initialState(): LabState {
   const fromHash = readHash();
   if (fromHash) return fromHash;
@@ -19,11 +33,12 @@ export function snapshot(s: LabState): unknown {
   return { preset: s.preset, design: portableDesign(s.design), view: s.view };
 }
 
-/** A lab state from untrusted JSON, or `null` when there is no usable design. */
-export function restore(raw: unknown): LabState | null {
+/** A lab state from untrusted JSON, or `null` when there is no usable design.
+ *  What it leaves out is described in `dropped`. */
+export function restore(raw: unknown, dropped: string[] = []): LabState | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const r = raw as Record<string, unknown>;
-  const design = sanitizeDesign(r.design);
+  const design = sanitizeDesign(r.design, dropped);
   if (!design) return null;
   return { preset: typeof r.preset === 'string' ? r.preset : '', design, view: sanitizeView(r.view) };
 }
@@ -36,11 +51,17 @@ export function writeHash(s: LabState): void {
 function readHash(): LabState | null {
   const m = location.hash.match(/^#s=([A-Za-z0-9_-]+)$/);
   if (!m) return null;
+  const dropped: string[] = [];
+  let state: LabState | null = null;
   try {
-    return restore(decode(m[1]));
+    state = restore(decode(m[1]), dropped);
   } catch {
-    return null;
+    state = null;
   }
+  openingNotice = state
+    ? droppedNotice('this link', dropped)
+    : `This link’s design couldn’t be read${dropped.length > 0 ? ` (${dropped.join(', ')})` : ''}, so the lab opened on a preset.`;
+  return state;
 }
 
 /** View settings that may be `'auto'`. */

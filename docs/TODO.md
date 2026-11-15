@@ -16,11 +16,3 @@ Owner tags, after the priority:
 - **[waiting]** — nothing to do until something outside happens
 
 ---
-
-- **(P3) [agent] The lab opens a shared link without saying what it couldn't load.** `sanitizeDesign`
-  in `packages/agnew/src/codec.ts` drops unknown block kinds, wrongly typed params and motions, and
-  blocks past `MAX_BLOCKS`, and returns `null` for an unknown design version; `restore` in
-  `apps/lab/src/state.ts` then shows whatever survived, or the first preset, with no notice. Fresh
-  block ids on load are not a loss: `portableDesign` strips ids on purpose.
-  Closes when opening a link with an unknown kind, a bad param, or `version: 3` shows a notice
-  naming what was dropped or refused.

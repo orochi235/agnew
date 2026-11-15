@@ -26,17 +26,30 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 
 const isNumberParam = (kind: BlockKind, key: string) => kind.params.some((p) => p.key === key && p.type === 'number');
 
-function sanitizeBlocks(raw: unknown): Block[] {
+function sanitizeBlocks(raw: unknown, dropped: string[]): Block[] {
   if (!Array.isArray(raw)) return [];
   const blocks: Block[] = [];
-  for (const item of raw) {
-    if (blocks.length === MAX_BLOCKS) break;
-    if (!isRecord(item) || typeof item.kind !== 'string') continue;
+  for (const [i, item] of raw.entries()) {
+    if (blocks.length === MAX_BLOCKS) {
+      dropped.push(`${raw.length - i} blocks past the limit of ${MAX_BLOCKS}`);
+      break;
+    }
+    if (!isRecord(item) || typeof item.kind !== 'string') {
+      dropped.push('a block with no kind');
+      continue;
+    }
     const kind = kinds.get(item.kind);
-    if (!kind) continue;
+    if (!kind) {
+      dropped.push(`block “${item.kind}”`);
+      continue;
+    }
     const params = defaultParams(kind.params);
     const given = isRecord(item.params) ? item.params : {};
+    for (const key of Object.keys(given)) {
+      if (!kind.params.some((p) => p.key === key)) dropped.push(`${kind.kind}’s ${key}`);
+    }
     for (const spec of kind.params) {
+      if (!(spec.key in given)) continue;
       const v = given[spec.key];
       const ok =
         (spec.type === 'number' && typeof v === 'number' && Number.isFinite(v)) ||
@@ -44,6 +57,7 @@ function sanitizeBlocks(raw: unknown): Block[] {
         (spec.type === 'boolean' && typeof v === 'boolean') ||
         (spec.type === 'choice' && typeof v === 'string' && spec.options.includes(v));
       if (ok) params[spec.key] = v as ParamValue;
+      else dropped.push(`${kind.kind}’s ${spec.key}`);
     }
     const block: Block = { id: newBlockId(), kind: kind.kind, enabled: item.enabled !== false, params };
     if (isRecord(item.motion)) {
@@ -51,6 +65,7 @@ function sanitizeBlocks(raw: unknown): Block[] {
       for (const [key, m] of Object.entries(item.motion)) {
         const clean = isNumberParam(kind, key) ? sanitizeMotion(m) : null;
         if (clean) motion[key] = clean;
+        else dropped.push(`the motion on ${kind.kind}’s ${key}`);
       }
       if (Object.keys(motion).length > 0) block.motion = motion;
     }
@@ -68,14 +83,18 @@ const num = (v: unknown, def: number, min: number, max: number) =>
  * defaults, blocks past `MAX_BLOCKS` are cut, and every block gets a fresh
  * id. A version 1 design loads as one with no motion. Returns `null` when
  * nothing usable is there, or when the design is from a version this one
- * does not know.
+ * does not know. Whatever is dropped or refused is described in `dropped`,
+ * one short phrase each, for telling the person who loaded it.
  */
-export function sanitizeDesign(value: unknown): Design | null {
+export function sanitizeDesign(value: unknown, dropped: string[] = []): Design | null {
   if (!isRecord(value) || !Array.isArray(value.blocks)) return null;
-  if (value.version !== undefined && value.version !== 1 && value.version !== 2) return null;
+  if (value.version !== undefined && value.version !== 1 && value.version !== 2) {
+    dropped.push(`a version ${String(value.version)} design`);
+    return null;
+  }
   const design: Design = {
     version: 2,
-    blocks: sanitizeBlocks(value.blocks),
+    blocks: sanitizeBlocks(value.blocks, dropped),
     turns: num(value.turns, 1, 0.01, 1000),
     samples: value.samples === AUTO ? AUTO : Math.round(num(value.samples, 8000, 2, MAX_SAMPLES)),
     loop: num(value.loop, DEFAULT_LOOP, 0.5, 600),
@@ -85,7 +104,7 @@ export function sanitizeDesign(value: unknown): Design | null {
   if (isRecord(m) && isRecord(m.to)) {
     const motion = sanitizeMotion(m.motion);
     design.morph = {
-      to: { blocks: sanitizeBlocks(m.to.blocks), turns: num(m.to.turns, 1, 0.01, 1000) },
+      to: { blocks: sanitizeBlocks(m.to.blocks, dropped), turns: num(m.to.turns, 1, 0.01, 1000) },
       weight: num(m.weight, 0, 0, 1),
       ...(typeof m.name === 'string' ? { name: m.name.slice(0, 200) } : {}),
       ...(motion ? { motion } : {}),

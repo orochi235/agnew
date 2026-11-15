@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { download, fileStem, presetLabel } from '../files';
 import { parsePresetFile, presetFile, SAVED_PREFIX, useSavedPresets } from '../saved';
 import { refit, useAgnew, useAgnewView } from '../session';
-import type { LabState } from '../state';
+import { type LabState, takeOpeningNotice } from '../state';
 
 /** The dropdown's value while the state matches no preset. */
 const CUSTOM = 'custom';
@@ -16,7 +16,7 @@ export function PresetPanel() {
   const { enter: present } = usePresentation();
   const saved = useSavedPresets();
   const [name, setName] = useState(() => (state.preset.startsWith(SAVED_PREFIX) ? presetLabel(state.preset) : ''));
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(takeOpeningNotice);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const replace = (next: LabState) => setState(next);
@@ -58,7 +58,7 @@ export function PresetPanel() {
       const p = parsePresetFile(await file.text());
       replace({ ...p.state, preset: '' });
       setName(p.name);
-      setNote(`Loaded “${p.name}” from ${file.name}.`);
+      setNote(`Loaded “${p.name}” from ${file.name}.${p.notice ? ` ${p.notice}` : ''}`);
       refit(viewRef);
     } catch (e) {
       setNote((e as Error).message);
