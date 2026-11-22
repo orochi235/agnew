@@ -1,5 +1,5 @@
 import { ControlPanel, isAuto } from '@weasel-js/labkit';
-import { LayerList, type LayerListItem, moveLayers } from '@weasel-js/ui';
+import { EffectList, type EffectKind, type EffectListItem } from '@weasel-js/ui';
 import { AUTO, BLOCK_KINDS, type Block, blockKind, createBlock, type Design, type ParamSpec } from 'agnew';
 import { useMemo, useState } from 'react';
 import { BlockMotions } from './BlockMotions';
@@ -14,43 +14,35 @@ function pinnable(params: Block['params'], specs: readonly ParamSpec[]): Block['
   return out;
 }
 
+const KINDS: Record<string, EffectKind> = Object.fromEntries(
+  BLOCK_KINDS.map((k, i) => [k.kind, { label: k.label, color: i }]),
+);
+
 interface Props {
   design: Design;
   onChange(design: Design): void;
 }
 
-/** The block stack: one card per block, numbered and colored by its place in
- *  the stack, each with its own control panel. */
+/** The block stack: one card per block, numbered by its place in the stack and
+ *  colored by its kind; the open card shows its control panel. */
 export function StackEditor({ design, onChange }: Props) {
   const [adding, setAdding] = useState(BLOCK_KINDS[0].kind);
   const setBlocks = (blocks: Block[]) => onChange({ ...design, blocks });
   const update = (id: string, patch: Partial<Block>) =>
     setBlocks(design.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)));
 
-  const items = useMemo<LayerListItem[]>(
-    () =>
-      design.blocks.map((b, i) => {
-        const kind = blockKind(b.kind);
-        return {
-          id: b.id,
-          label: kind.label,
-          title: (
-            <span className="ag-card__title">
-              <span>{kind.label}</span>
-              <span className={`ag-tag ag-tag--${kind.role}`}>{kind.role}</span>
-            </span>
-          ),
-          badge: i + 1,
-          tone: i,
-          visible: b.enabled,
-        };
-      }),
+  const [open, setOpen] = useState<string | null>(null);
+
+  // Blocks have no names: a card's name is its kind's label, and onChange
+  // reads back only order, `on` and removal, so a typed rename snaps back.
+  const items = useMemo<EffectListItem[]>(
+    () => design.blocks.map((b) => ({ id: b.id, kind: b.kind, name: blockKind(b.kind).label, on: b.enabled })),
     [design.blocks],
   );
   const byId = new Map(design.blocks.map((b) => [b.id, b]));
 
-  // A disabled block keeps its body, dimmed, so it stays a card in its color.
-  const body = (item: LayerListItem) => {
+  // A disabled block keeps its body, dimmed.
+  const body = (item: EffectListItem) => {
     const b = byId.get(item.id);
     if (!b) return null;
     const kind = blockKind(b.kind);
@@ -82,15 +74,14 @@ export function StackEditor({ design, onChange }: Props) {
           Add block
         </button>
       </div>
-      <LayerList
+      <EffectList
         className="ag-stack__list"
         aria-label="Blocks"
         items={items}
-        onReorder={(move) => setBlocks(moveLayers(items, move).map((it) => byId.get(it.id)!))}
-        onVisibilityChange={(changes) =>
-          setBlocks(design.blocks.map((b) => (b.id in changes ? { ...b, enabled: changes[b.id] } : b)))
-        }
-        onRemove={(id) => setBlocks(design.blocks.filter((b) => b.id !== id))}
+        kinds={KINDS}
+        onChange={(next) => setBlocks(next.map((it) => ({ ...byId.get(it.id)!, enabled: it.on })))}
+        selected={open}
+        onSelectionChange={setOpen}
         renderBody={body}
       />
     </div>

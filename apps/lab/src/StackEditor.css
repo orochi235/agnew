@@ -5,29 +5,8 @@
   margin-top: var(--wzl-space-3, 12px);
 }
 
-.ag-card__title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .ag-card__body--off {
   opacity: 0.55;
-}
-
-.ag-tag {
-  padding: 0 6px;
-  border-radius: var(--wzl-radius-pill, 999px);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--wzl-fg-muted);
-  border: 1px solid var(--wzl-border);
-}
-
-.ag-tag--modifier {
-  color: var(--wzl-accent);
-  border-color: var(--wzl-accent);
 }
 
 .ag-add {

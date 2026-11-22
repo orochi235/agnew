@@ -46,8 +46,8 @@ async function frameBox() {
 
 /** Stop the view turning by itself, from the Look panel. */
 async function autoRotateOff() {
-  // The picker's accessible name carries its value, so it is found by its label.
-  await page.locator('button[aria-label="Auto-rotate"]').click();
+  // The picker is named by its value, then its label; a changed row also has "Reset Auto-rotate".
+  await page.locator('button[aria-haspopup="listbox"]').and(page.getByRole('button', { name: /Auto-rotate$/ })).click();
   await page.getByRole('option', { name: 'Off', exact: true }).click();
 }
 
@@ -79,8 +79,14 @@ async function inked() {
 
 const hash = () => page.evaluate(() => location.hash);
 const selects = () => page.locator('.ag-panel select');
-/** One drag handle per block card. */
+/** One drag handle per block card, which also opens and closes it. */
 const blockCards = () => page.getByRole('button', { name: /^Drag to reorder / });
+
+/** Open the first block card, so its sliders show; only the open card has any. */
+async function openFirstCard() {
+  const handle = blockCards().first();
+  if ((await handle.getAttribute('aria-pressed')) !== 'true') await handle.click();
+}
 
 step('loads and draws', async () => {
   await page.goto(values.url);
@@ -136,13 +142,17 @@ step('adds, disables and removes a block', async () => {
   await page.getByRole('button', { name: 'Add block' }).click();
   if ((await blockCards().count()) !== n + 1) fail('block was not added');
   if (!(await page.locator('.ag-badge').isVisible())) fail('custom badge missing after edit');
-  await page.getByRole('checkbox', { name: 'Show Precess' }).uncheck();
+  const run = page.getByRole('switch', { name: 'Run Precess' });
+  // The switch's input sits under its drawn track, which takes the click.
+  await run.click({ force: true });
+  if (await run.isChecked()) fail('switch did not turn the block off');
   await page.getByRole('button', { name: 'Remove Precess' }).click();
   if ((await blockCards().count()) !== n) fail('block was not removed');
 });
 
 step('edits a block parameter from its slider', async () => {
   const before = await hash();
+  await openFirstCard();
   const slider = page.locator('.ag-stack__list').getByRole('slider').first();
   await slider.focus();
   await page.keyboard.press('ArrowRight');
@@ -153,6 +163,7 @@ step('edits a block parameter from its slider', async () => {
 
 step('undoes a slider drag as one step, and redoes it', async () => {
   const before = await hash();
+  await openFirstCard();
   const slider = page.locator('.ag-stack__list').getByRole('slider').first();
   await slider.focus();
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
