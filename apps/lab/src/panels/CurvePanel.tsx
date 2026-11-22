@@ -6,22 +6,22 @@ import { MorphEditor } from './MorphEditor';
 
 const curveSchema = resolveConfigSchema(
   f.schema({
-    turns: f.number(1).range(0.25, 60).step(0.25).label('Turns').manual(),
+    turns: f.number(1).range(0.25, 60).step(0.25).label('Turns'),
     loop: f
       .number(12)
       .range(1, 120)
       .step(0.5)
       .label('Loop')
       .suffix(' s')
-      .describe('Seconds before everything repeats: every motion runs whole cycles in it.')
-      .manual(),
-    passes: f.number(1).range(1, 20).step(1).label('Pen passes').describe('Times the pen draws the curve per loop.').manual(),
+      .describe('Seconds before everything repeats: every motion runs whole cycles in it.'),
+    passes: f.number(1).range(1, 20).step(1).label('Pen passes').describe('Times the pen draws the curve per loop.'),
     samples: f
       .number(8000)
       .range(500, MAX_SAMPLES)
       .step(500)
       .label('Samples')
-      .describe('Click the label for auto: enough points that each segment is short beside the curve.'),
+      .describe('Click the label for auto: enough points that each segment is short beside the curve.')
+      .auto(),
   }),
 );
 
@@ -41,7 +41,7 @@ export function CurvePanel() {
         }}
         setConfig={(path, v) => setDesign({ ...state.design, [path]: isAuto(v) ? AUTO : (v as number) })}
         auto={state.design.samples === AUTO ? new Set(['samples']) : new Set<string>()}
-        density="tight"
+        spacing="tight"
       />
       <MorphEditor design={state.design} onChange={setDesign} />
       <StackEditor design={state.design} onChange={setDesign} />

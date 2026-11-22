@@ -1,4 +1,4 @@
-import { ControlPanel, isAuto, withValueAtPath } from '@weasel-js/labkit';
+import { ControlPanel, isAuto, withConfigValueAt } from '@weasel-js/labkit';
 import { AUTO } from 'agnew';
 import { cameraPresetsFor, frameAspect, type Shape, SHAPES, STYLE_DEFAULTS, type Style, type ViewSettings } from 'agnew/three';
 import { refit, useAgnew, useAgnewView } from '../session';
@@ -33,7 +33,7 @@ export function LookPanel() {
   const setView = (path: string, raw: unknown) =>
     setState((s) => {
       const value = isAuto(raw) ? AUTO : raw;
-      let view = withValueAtPath(s.view, path, value) as ViewSettings;
+      let view = withConfigValueAt(s.view, path, value) as ViewSettings;
       if (path === 'style') view = { ...view, ...STYLE_DEFAULTS[value as Style] };
       const named = path === 'shape' ? SHAPES[value as Shape].ratio : null;
       if (named) view = { ...view, ratioW: named[0], ratioH: named[1] };
@@ -61,7 +61,7 @@ export function LookPanel() {
         }
         setConfig={setView}
         auto={autoKeys(state.view as never)}
-        density="tight"
+        spacing="tight"
       />
       <div className="ag-buttons">
         <button

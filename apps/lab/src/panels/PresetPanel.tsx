@@ -75,7 +75,7 @@ export function PresetPanel() {
       : [{ value: CUSTOM, label: 'Custom (unsaved)' }, ...options];
   }, [saved.list, state.preset]);
   const presetSchema = useMemo(
-    () => resolveConfigSchema(f.schema({ preset: f.enum<string>(CUSTOM, presetOptions).label('Preset').manual() })),
+    () => resolveConfigSchema(f.schema({ preset: f.enum<string>(CUSTOM, presetOptions).label('Preset') })),
     [presetOptions],
   );
   const presetValue = presetOptions.some((o) => o.value === state.preset) ? state.preset : CUSTOM;

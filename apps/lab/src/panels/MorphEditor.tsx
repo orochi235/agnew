@@ -13,8 +13,7 @@ const weightSchema = resolveConfigSchema(
       .range(0, 1)
       .step(0.01)
       .label('Morph')
-      .describe('0 draws this curve, 1 the other, and between blends them point by point.')
-      .manual(),
+      .describe('0 draws this curve, 1 the other, and between blends them point by point.'),
   }),
 );
 
@@ -66,7 +65,7 @@ export function MorphEditor({ design, onChange }: Props) {
             schema={weightSchema}
             config={{ weight: morph.weight }}
             setConfig={(_p, v) => onChange({ ...design, morph: { ...morph, weight: v as number } })}
-            density="tight"
+            spacing="tight"
           />
           {morph.motion ? (
             <>

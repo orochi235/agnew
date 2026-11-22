@@ -7,13 +7,13 @@ export function paramSchema(specs: readonly ParamSpec[]): ResolvedConfig {
   for (const s of specs) {
     if (s.type === 'number') {
       let node = f.number(s.default).range(s.min, s.max).step(s.step).label(s.label);
-      if (!s.auto) node = node.manual();
+      if (s.auto) node = node.auto();
       if (s.suffix) node = node.suffix(s.suffix);
       shape[s.key] = node;
     } else if (s.type === 'boolean') {
-      shape[s.key] = f.boolean(s.default).label(s.label).manual();
+      shape[s.key] = f.boolean(s.default).label(s.label);
     } else {
-      shape[s.key] = f.enum(s.default, s.options).label(s.label).manual();
+      shape[s.key] = f.enum(s.default, s.options).label(s.label);
     }
   }
   return resolveConfigSchema(f.schema(shape));

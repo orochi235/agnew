@@ -12,7 +12,6 @@ export function App() {
   return (
     <Lab
       instruments={INSTRUMENTS}
-      defaultInstrument="agnew"
       title="agnewgraph (rip ted)"
       mode="dark"
       present={startsPresenting(location.search)}

@@ -61,7 +61,7 @@ export function StackEditor({ design, onChange }: Props) {
           config={pinnable(b.params, kind.params)}
           setConfig={(path, value) => update(b.id, { params: { ...b.params, [path]: (isAuto(value) ? AUTO : value) as never } })}
           auto={new Set(Object.keys(b.params).filter((k) => b.params[k] === AUTO))}
-          density="tight"
+          spacing="tight"
         />
         <BlockMotions block={b} onChange={(motion) => update(b.id, { motion })} />
       </div>
@@ -84,10 +84,12 @@ export function StackEditor({ design, onChange }: Props) {
       </div>
       <LayerList
         className="ag-stack__list"
-        label="Blocks"
+        aria-label="Blocks"
         items={items}
         onReorder={(move) => setBlocks(moveLayers(items, move).map((it) => byId.get(it.id)!))}
-        onVisibilityChange={(id, visible) => update(id, { enabled: visible })}
+        onVisibilityChange={(changes) =>
+          setBlocks(design.blocks.map((b) => (b.id in changes ? { ...b, enabled: changes[b.id] } : b)))
+        }
         onRemove={(id) => setBlocks(design.blocks.filter((b) => b.id !== id))}
         renderBody={body}
       />

@@ -16,15 +16,14 @@ function waveSchema(range: Range): ResolvedConfig {
   if (!s) {
     s = resolveConfigSchema(
       f.schema({
-        shape: f.enum<string>('sine', WAVE_SHAPES).label('Shape').manual(),
-        cycles: f.number(1).range(1, 32).step(1).label('Cycles per loop').manual(),
+        shape: f.enum<string>('sine', WAVE_SHAPES).label('Shape'),
+        cycles: f.number(1).range(1, 32).step(1).label('Cycles per loop'),
         depth: f
           .number(0)
           .range(0, range.max - range.min)
           .step(range.step)
-          .label('Depth')
-          .manual(),
-        phase: f.number(0).range(0, 1).step(0.01).label('Phase').manual(),
+          .label('Depth'),
+        phase: f.number(0).range(0, 1).step(0.01).label('Phase'),
       }),
     );
     waveSchemas.set(key, s);
@@ -32,7 +31,7 @@ function waveSchema(range: Range): ResolvedConfig {
   return s;
 }
 
-const easeSchema = resolveConfigSchema(f.schema({ ease: f.enum<string>('linear', EASES).label('Ease').manual() }));
+const easeSchema = resolveConfigSchema(f.schema({ ease: f.enum<string>('linear', EASES).label('Ease') }));
 
 interface Props {
   motion: Motion;
@@ -70,7 +69,7 @@ function WaveFields({ wave, range, onChange }: { wave: WaveMotion; range: Range;
       schema={waveSchema(range)}
       config={{ shape: wave.shape, cycles: wave.cycles, depth: wave.depth, phase: wave.phase }}
       setConfig={(path, v) => onChange({ ...wave, [path]: v } as WaveMotion)}
-      density="tight"
+      spacing="tight"
     />
   );
 }
@@ -85,7 +84,7 @@ function KeysFields({ keys, range, onChange }: { keys: KeysMotion; range: Range;
         schema={easeSchema}
         config={{ ease: keys.ease }}
         setConfig={(_p, v) => onChange({ ...keys, ease: v as Ease })}
-        density="tight"
+        spacing="tight"
       />
       <table className="ag-keys">
         <thead>
