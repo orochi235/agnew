@@ -16,3 +16,5 @@ Owner tags, after the priority:
 - **[waiting]** — nothing to do until something outside happens
 
 ---
+
+- **Behind on blits.** It pins a blits 0.x release (agnew 0.8.1, fiddy 0.14.0, read 2026-11-25) against the current 1.4.0, a real migration rather than a bump. agnew is also not registered with alpo. Closes when it builds on blits 1.x.
